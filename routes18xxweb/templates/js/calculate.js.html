@@ -160,8 +160,18 @@ function calculate() {
         .css("margin", "auto")
         .appendTo($("#calculate-result"));
 
+    var railroadsTable = getRailroadsAsTable();
+    railroadsTable = railroadsTable.map(row => {
+        return [
+            row[0],
+            row[1],
+            row[2],
+            isEmpty(row[3]) ? row[3] : `{"D6": "${row[3]}"}`
+        ];
+    });
+
     var postData = {
-        "railroads-json": JSON.stringify(getRailroadsAsTable()),
+        "railroads-json": JSON.stringify(railroadsTable),
         "removed-railroads-json": JSON.stringify(getRemovedRailroads()),
         "private-companies-json": JSON.stringify(getPrivateCompaniesAsTable()),
         "board-state-json": JSON.stringify(getTilesAsTable()),
