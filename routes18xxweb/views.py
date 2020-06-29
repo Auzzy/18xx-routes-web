@@ -6,8 +6,9 @@ from flask import Blueprint, g, jsonify, render_template, request, url_for
 from flask_mail import Message
 from rq import Queue
 
-from routes18xx import board, boardstate, boardtile, find_best_routes, game, private_companies, railroads, tiles, LOG as LIB_LOG
-from routes18xx.cell import _CELL_DB, Cell, board_cells
+from routes18xx import board, boardstate, boardtile, find_best_routes, game, railroads, tiles, LOG as LIB_LOG
+from routes18xx.cell import _CELL_DB, Cell, board_cells, initialize_cells
+from routes18xx.games.routes1846 import private_companies
 
 from routes18xxweb.routes18xxweb import app, get_data_file, mail
 from routes18xxweb.calculator import redis_conn
@@ -44,8 +45,7 @@ RAILROAD_NAMES = {
 RAILROADS_COLUMN_MAP = {
     "name": "name",
     "trains": "trains",
-    "stations": "stations",
-    "chicago_station_exit_coord": "chicago station side"
+    "stations": "stations"
 }
 
 PRIVATE_COMPANY_COLUMN_MAP = {
@@ -156,16 +156,27 @@ def calculate():
     board_state_rows = json.loads(request.form.get("board-state-json"))
     railroad_name = request.form["railroad-name"]
 
+    for row in railroads_state_rows:
+        if row[3]:
+            split_branch_map = json.loads(row[3])
+            stations_strs = []
+            for coord in row[2].split(","):
+                if coord not in split_branch_map:
+                    stations_strs.append(coord)
+                else:
+                    if isinstance(split_branch_map[coord], list):
+                        stations_strs.append(f"{coord}: [{' '.join(split_branch_map[coord])}]")
+                    else:
+                        stations_strs.append(f"{coord}: {split_branch_map[coord]}")
+            row[2] = ','.join(stations_strs)
+            del row[3]
+
     LOG.info("Calculate request.")
     LOG.info(f"Target railroad: {railroad_name}")
     LOG.info(f"Private companies: {private_companies_rows}")
     LOG.info(f"Railroad input: {railroads_state_rows}")
     LOG.info(f"Removed railroads: {removed_railroads}")
     LOG.info(f"Board input: {board_state_rows}")
-
-    for row in railroads_state_rows:
-        if row[3]:
-            row[3] = CHICAGO_STATION_COORDS[row[3]]
 
     railroads_state_rows += [[name, "removed"] for name in removed_railroads]
 
