@@ -1,0 +1,347 @@
+{% set indRailroadNames = ["Big 4", "Michigan Southern"] %}
+var indRailroadNames = {{ indRailroadNames|safe }};
+
+function getPrivateCompaniesHeaders() {
+    return $("#private-companies-table th").map((index, header) => $(header).text().toLowerCase()).toArray();
+}
+
+function getPrivateCompanyNames() {
+    return $("#private-companies-table tr[data-name]").map((index, row) => $(row).attr("data-name")).toArray();
+}
+
+function getPrivateCompaniesAsTable() {
+    var privateCompanyTableData = [];
+    $("#private-companies-table tr[data-name]").each((index, element) => {
+        return privateCompanyTableData.push([
+            $(element).attr("data-name"),
+            $(element).attr("data-owner"),
+            $(element).attr("data-coord")
+        ]);
+    });
+    return privateCompanyTableData;
+}
+
+function getPrivateCompanyRow(companyName) {
+    return $(`#private-companies-table tr[data-name='${companyName}']`);
+}
+
+function getIndependentRailroadsAsTable() {
+    return getPrivateCompaniesAsTable().filter(company => indRailroadNames.includes(company[0]));
+}
+
+function getPrivateCompanySpaceInfo(coord, privateCompanyName, callback) {
+    if (coord === chicago) {
+        getTileInfo(coord, undefined, (tileInfo) => {
+            $.get("{{ url_for('board_private_company_info') }}", {coord: coord, company: privateCompanyName, phase: tileInfo["phase"]})
+                .done(function(response) {
+                    callback(response["info"]);
+                });
+        });
+    } else {
+        $.get("{{ url_for('board_private_company_info') }}", {coord: coord, company: privateCompanyName})
+            .done(function(response) {
+                callback(response["info"]);
+            });
+    }
+}
+
+function setPrivateCompanyTokenCoord(privateCompanyRow, tokenCoord) {
+    var companyName = privateCompanyRow.attr("data-name");
+    if (companyName === "Big 4") {
+        tokenCoord = "{{ independent_railroad_home_cities['Big 4'] }}";
+    } else if (companyName === "Michigan Southern") {
+        tokenCoord = "{{ independent_railroad_home_cities['Michigan Southern'] }}";
+    }
+
+    var tokenDisplay = privateCompanyRow.find(".company-token .display");
+    tokenDisplay.empty();
+
+    if (isEmpty(tokenCoord)) {
+        // No token coord, so reset and bail
+        tokenDisplay.removeAttr("data-coord");
+        privateCompanyRow.removeAttr("data-coord");
+        return;
+    }
+
+    var tokenHtml = `${cityNames[tokenCoord]} (${tokenCoord})`;
+
+    tokenDisplay
+        .attr("data-coord", tokenCoord)
+        .html(tokenHtml);
+    privateCompanyRow.attr("data-coord", tokenDisplay.attr("data-coord"));
+}
+
+function setIndependentRailroadOwner(privateCompanyRow, indRailroadName, owner) {
+    var attrName = indRailroadName === "Big 4" ? "data-big-4" : "data-michigan-southern";
+    var previousOwnerRow = $(`#railroads-table tr[${attrName}]`);
+    removeRailroadStation(previousOwnerRow, previousOwnerRow.attr(attrName));
+    previousOwnerRow.removeAttr(attrName);
+
+    if (!isEmpty(owner)) {
+        var railroadRow = $(`#railroads-table tr[data-railroad='${owner}']`);
+        var coord = privateCompanyRow.attr("data-coord");
+        addRailroadStation(railroadRow, coord);
+        railroadRow.attr(attrName, coord);
+    }
+}
+
+function setPrivateCompanyOwner(privateCompanyRow, owner) {
+    var companyName = privateCompanyRow.attr("data-name");
+    if (indRailroadNames.includes(companyName)) {
+        setIndependentRailroadOwner(privateCompanyRow, companyName, owner);
+    }
+
+    var ownerDisplay = privateCompanyRow.find(".company-owner .display");
+    ownerDisplay.empty();
+
+    if (isEmpty(owner)) {
+        // No owner, so reset and bail
+        ownerDisplay.removeAttr("data-owner");
+        privateCompanyRow.removeAttr("data-owner");
+        privateCompanyRow.find(".company-token button").hide();
+        return;
+    }
+
+    ownerDisplay
+        .attr("data-owner", owner)
+        .html(owner);
+    privateCompanyRow.attr("data-owner", ownerDisplay.attr("data-owner"));
+
+    // This is fine, because setPrivateCompanyTokenCoord can't change independent railroad coords.
+    setPrivateCompanyTokenCoord(privateCompanyRow, null);
+    if (["Steamboat Company", "Meat Packing Company"].includes(companyName)) {
+        privateCompanyRow.find(".company-token button").show();
+    }
+}
+
+function updateLocalStoragePrivateCompanies() {
+    if (typeof(Storage) !== "undefined") {
+        localStorage.privateCompaniesTable = JSON.stringify(getPrivateCompaniesAsTable());
+    }
+}
+
+function loadFromLocalStoragePrivateCompanies() {
+    if (typeof(Storage) !== "undefined") {
+        if (localStorage.privateCompaniesTable !== undefined) {
+            return importPrivateCompanies(preparePrivateCompaniesForExport(JSON.parse(localStorage.privateCompaniesTable)));
+        }
+    }
+    return Promise.resolve();
+}
+
+async function importPrivateCompanies(importText) {
+    var importTableData = [];
+    await Promise.all(importText.trim().split("\n").map(rowStr => {
+        var rowData = rowStr.split(";", 3).map(cell => cell.trim());
+
+        if (!getPrivateCompanyNames().includes(rowData[0])) {
+            return;
+        } else if (isEmpty(rowData[1])) {
+            importTableData.push([rowData[0], null, null]);
+            return;
+        }
+
+        return $.when(
+                $.get("{{ url_for('legal_railroads') }}"),
+                $.get("{{ url_for('legal_token_coords') }}", {companyName: rowData[0]})
+            ).done(function(legalRailroadsResponse, legalTokenCoordsResponse) {
+                if (legalRailroadsResponse[0]["railroads"].includes(rowData[1])
+                        && (isEmpty(rowData[2]) || legalTokenCoordsResponse[0]["coords"].includes(rowData[2]))) {
+                    importTableData.push(rowData);
+                }
+            });
+    }));
+
+    importTableData.forEach(rowData => {
+        var companyName = rowData[0];
+        var tableRow = $(`#private-companies-table tr[data-name='${companyName}']`);
+
+        setPrivateCompanyOwner(tableRow, rowData[1]);
+        if (!isEmpty(rowData[2])) {
+            setPrivateCompanyTokenCoord(tableRow, rowData[2]);
+        }
+    });
+
+    drawTokens();
+}
+
+function preparePrivateCompaniesForExport(privateCompaniesTable) {
+    privateCompaniesTable = privateCompaniesTable === undefined ? getPrivateCompaniesAsTable() : privateCompaniesTable;
+    return privateCompaniesTable.map(row => row.join("; ")).join("\n");
+}
+
+function privateCompanyHeaders() {
+    $("#private-companies-table")
+        .append($("<tr></tr>")
+            .css("font-size", "125%")
+            .append($("<th></th>")
+                .css("width", "30%")
+                .text("Name"))
+            .append($("<th></th>")
+                .css("width", "32%")
+                .text("Owner"))
+            .append($("<th></th>")
+                .css("width", "30%")
+                .text("Token")));
+}
+
+function privateCompanyNewRow(companyName) {
+    $("#private-companies-table")
+        .append($("<tr></tr>")
+            .css("border-bottom", "1px solid black")
+            .attr("data-name", companyName)
+            .append($("<td></td>")
+                .css("width", "30%")
+                .append($("<div></div>")
+                    .addClass("company-name")))
+                    .attr("data-name", companyName)
+                    .text(companyName)
+            .append($("<td></td>")
+                .css("width", "32%")
+                .append($("<div></div>")
+                    .addClass("dropdown")
+                    .addClass("company-owner")
+                    .append($("<button></button>")
+                        .addClass("btn btn-sm btn-outline-primary dropdown-toggle")
+                        .css("float", "left")
+                        .attr("type", "button")
+                        .attr("data-toggle", "dropdown")
+                        .attr("aria-haspopup", "true")
+                        .attr("aria-expanded", "false"))
+                    .append($("<div></div>")
+                        .html("&nbsp;")
+                        .css("width", 10)
+                        .css("float", "left"))
+                    .append($("<span></span>")
+                        .addClass("display")
+                        .css("float", "left"))
+                    .append($("<div></div>")
+                        .addClass("dropdown-menu"))
+                    .on("show.bs.dropdown", function() {
+                        populatePrivateCompanyOwnerDropdown($(this).parents("tr"));
+                    })))
+            .append($("<td></td>")
+                .css("width", "30%")
+                .append($("<div></div>")
+                    .addClass("dropdown")
+                    .addClass("company-token")
+                    .append($("<button></button>")
+                        .addClass("btn btn-sm btn-outline-primary dropdown-toggle")
+                        .css("float", "left")
+                        .attr("type", "button")
+                        .attr("data-toggle", "dropdown")
+                        .attr("aria-haspopup", "true")
+                        .attr("aria-expanded", "false")
+                        .hide())
+                    .append($("<div></div>")
+                        .html("&nbsp;")
+                        .css("width", 10)
+                        .css("float", "left"))
+                    .append($("<span></span>")
+                        .addClass("display")
+                        .css("float", "left"))
+                    .append($("<div></div>")
+                        .addClass("dropdown-menu"))
+                    .on("show.bs.dropdown", function() {
+                        populatePrivateCompanyTokenCoordDropdown($(this).parents("tr"));
+                    })))
+            .append($("<button></button>")
+                .addClass("btn btn-outline-danger")
+                .css("margin-left", 10)
+                .attr("type", "button")
+                .append($("<span></span>")
+                    .addClass("oi oi-delete"))
+                    .click(function() {
+                        removePrivateCompany($(this).parents("tr").attr("data-name"));
+                        drawTokens();
+                    })));
+}
+
+function removePrivateCompany(companyName) {
+    var sourceRow = getPrivateCompanyRow(companyName);
+    setPrivateCompanyTokenCoord(sourceRow, null);
+    setPrivateCompanyOwner(sourceRow, null);
+    updateLocalStoragePrivateCompanies();
+    updateLocalStorageRailroads();
+}
+
+function removeAllPrivateCompanies(predicate) {
+    if (isEmpty(predicate)) {
+        return;
+    }
+
+    getPrivateCompaniesAsTable()
+        .filter(company => !isEmpty(company[1]) && predicate(company))
+        .forEach(company => removePrivateCompany(company[0]));
+}
+
+function populatePrivateCompanyTokenCoordDropdown(sourceRow) {
+    var dropdownMenu = sourceRow.find(".company-token .dropdown-menu");
+    dropdownMenu.empty();
+
+    var companyName = sourceRow.attr("data-name");
+    $.get("{{ url_for('legal_token_coords') }}", {companyName: companyName})
+        .done(function(result) {
+            result["coords"].forEach(tokenCoord => {
+                var itemHtml = `${cityNames[tokenCoord]} (${tokenCoord})`;
+                dropdownMenu
+                    .append($("<a></a>")
+                        .addClass("dropdown-item")
+                        .attr("data-coord", tokenCoord)
+                        .attr("href", "#")
+                        .text(itemHtml)
+                        .click(function() {
+                            setPrivateCompanyTokenCoord(sourceRow, $(this).attr("data-coord"));
+
+                            drawTokens();
+
+                            sourceRow.find(".company-token button").focus();
+
+                            updateLocalStoragePrivateCompanies();
+                        })
+                    );
+            });
+        });
+}
+
+function populatePrivateCompanyOwnerDropdown(sourceRow) {
+    var dropdownMenu = sourceRow.find(".company-owner .dropdown-menu");
+    dropdownMenu.empty();
+
+    getRailroads()
+        .forEach(railroad => {
+            dropdownMenu
+                .append($("<a></a>")
+                    .addClass("dropdown-item")
+                    .attr("data-owner", railroad)
+                    .attr("href", "#")
+                    .text(railroad)
+                    .click(function() {
+                        var oldCoord = sourceRow.attr("data-coord");
+
+                        setPrivateCompanyOwner(sourceRow, $(this).attr("data-owner"));
+
+                        if (indRailroadNames.includes(sourceRow.attr("data-name")) || !isEmpty(oldCoord)) {
+                            drawTokens();
+                        }
+
+                        sourceRow.find(".company-owner button").focus();
+
+                        updateLocalStoragePrivateCompanies();
+                        updateLocalStorageRailroads();
+                    }));
+        });
+}
+
+function toggleEnablePrivateCompanies(enable) {
+    $("#private-companies-table").attr("data-disabled", enable ? "false" : "true");
+    $("#private-companies-table button").prop("disabled", !enable);
+}
+
+privateCompanyHeaders();
+{%- for name in private_company_rownames %}
+privateCompanyNewRow("{{ name }}");
+{% if name in indRailroadNames -%}
+setPrivateCompanyTokenCoord($("#private-companies-table tr[data-name='{{ name }}']"), "{{ independent_railroad_home_cities[name] }}");
+{%- endif -%}
+{% endfor %}

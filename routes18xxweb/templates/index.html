@@ -1,0 +1,326 @@
+{% extends "layout.html" %}
+
+{% block body %}
+<div>
+    <span style="display: inline-block; font-size: 2rem; font-family: inherit; font-weight: 500;">1846 Route Calculator</span>
+    <span>&nbsp;</span>
+    <button type="button" class="btn btn-sm btn-outline-info align-middle align-text-bottom" data-toggle="modal" data-target="#aboutModal">About</button>
+    <button id="general-report-issue-open" class="float-right btn btn-outline-danger" data-toggle="modal" data-target="#general-report-issue-modal" style="margin-right: 25px;">Report Issue</button>
+</div>
+<div id="controls" style="margin-bottom: 10px; width: 100%; text-align: center">
+    <button id="global-import-export-button" type="button" class="btn btn btn-outline-primary" style="margin-left: 20px" data-toggle="modal" data-target="#global-import-export-modal">Global Import/Export</button>
+    <button id="controls-clear" type="button" class="btn btn-outline-danger" style="margin-left: 10px;" data-toggle="modal" data-target="#confirm-clear-map-modal">Clear Map</button>
+</div>
+<div id="app-input-area" style="height: 100%;">
+    <div id="map-section" style="float: left; max-width: 60%">
+        <img tabindex="0" id="placed-tiles-board" src="{{ url_for('static', filename='images/1846-Map.png') }}" />
+        <canvas id="placed-tiles-board-canvas"></canvas>
+        <canvas id="stations-canvas"></canvas>
+        <canvas id="routes-canvas"></canvas>
+        <canvas id="tile-focus-canvas"></canvas>
+    </div>
+    <div style="float: left; width: 2%;">&nbsp;</div>
+    <div id="entry-section" style="float: left;">
+        <ul class="nav nav-tabs" id="config-tabs" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" id="railroad-table-tab" data-toggle="tab" href="#railroad-table-tab-content" role="tab" aria-controls="railroad-table-tab" aria-selected="true">Railroads</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="private-companies-table-tab" data-toggle="tab" href="#private-companies-table-tab-content" role="tab" aria-controls="private-companies-table-tab" aria-selected="false">Private Companies</a>
+            </li>
+            <div id="calculate-dropdown" class="dropdown">
+                <button type="button" class="btn btn-success dropdown-toggle" id="calculate-dropdown-button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    Calculate
+                </button>
+                <div id="calculate-dropdown-menu" class="dropdown-menu" aria-labelledby="calculate-dropdown-button"></div>
+            </div>
+            <div style="margin-left: 10px; font-weight: bold; font-size: 1.5em;">Phase <span id="board-phase"></span></div>
+        </ul>
+        <div id="config-tabs-content" class="tab-content" style="margin-top: 15px;">
+            <div class="tab-pane fade show active" id="railroad-table-tab-content" role="tabpanel" aria-labelledby="home-tab">
+                <table id="railroads-table"></table>
+                <div style="margin-top: 10px;">
+                    <h4>Removed Railroads</h4>
+                    <div id="removed-railroads"></div>
+                    <div class="dropdown" id="remove-railroad-dropdown" style="margin-top: 5px;">
+                        <button class="btn btn-sm btn-info dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <span class="oi oi-plus align-text-top"></span>
+                        </button>
+                        <div class="dropdown-menu" id="remove-railroad-dropdown-list"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="private-companies-table-tab-content" role="tabpanel" aria-labelledby="profile-tab">
+                <table id="private-companies-table"></table>
+            </div>
+            <div class="tab-pane fade" id="calculate-tab-content" role="tabpanel" aria-labelledby="profile-tab">
+                <h3><span id="best-routes-name"></span><span id="best-routes-total"></span></h3>
+                <div id="calculate-result"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="aboutModal" tabindex="-1" role="dialog" aria-labelledby="aboutModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">About</h2>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                {% include "about-modal.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="global-import-export-modal" tabindex="-1" role="dialog" aria-labelledby="global-import-export-modal" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Import/Export</h2>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Use the text areas to import or modify their respective data. The current state is pre-loaded. In
+                    each text area, one row corresponds to one item (e.g. one tile). The data fields will be listed, and
+                    all of them are delimited by semi-colons.
+                </p>
+                <ul class="nav nav-tabs" id="import-export-tabs" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="tiles-import-export-tab" data-toggle="tab" href="#tiles-import-export-tab-content" role="tab" aria-controls="tiles-import-export-tab" aria-selected="true">Tiles</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="railroads-import-export-tab" data-toggle="tab" href="#railroads-import-export-tab-content" role="tab" aria-controls="railroads-import-export-tab" aria-selected="true">Railroads</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="private-companies-import-export-tab" data-toggle="tab" href="#private-companies-import-export-tab-content" role="tab" aria-controls="private-companies-import-export-tab" aria-selected="true">Private Companies</a>
+                    </li>
+                </ul>
+                <div class="tab-content" id="import-export-tab-content" style="margin-left: 50px; margin-top: 30px;">
+                    <div class="tab-pane fade show active" id="tiles-import-export-tab-content" role="tabpanel" aria-labelledby="tiles-import-export-tab">
+                        <p>
+                            Fields: cell coordinate; tile ID; tile orientation<br />
+                            Example: "B16; 619; 4"
+                        </p>
+                        <textarea id="tiles-import-export-textarea" style="width: 100%;" rows="15"></textarea>
+                    </div>
+                    <div class="tab-pane fade" id="railroads-import-export-tab-content" role="tabpanel" aria-labelledby="railroads-import-export-tab">
+                        <p>
+                            Fields: railroad name; trains; stations; Chicago neighbor<br />
+                            Note that trains and stations are comma-separated lists.<br />
+                            Example: "Grand Trunk; 3/5, 4; C15, D6; C7"
+                        </p>
+                        <textarea id="railroads-import-export-textarea" style="width: 100%;" rows="7"></textarea>
+                    </div>
+                    <div class="tab-pane fade" id="private-companies-import-export-tab-content" role="tabpanel" aria-labelledby="private-companies-import-export-tab">
+                        <p>
+                            Fields: company name; owner; token coordinate<br />
+                            Example: "Meat Packing Company; Baltimore & Ohio; I1"
+                        </p>
+                        <textarea id="private-companies-import-export-textarea" style="width: 100%;" rows="7"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" type="button" id="global-import-save">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+{% include "placed-tiles-modals.html" %}
+
+{% include "report-issue-modals.html" %}
+
+{% include "railroads-table-modals.html" %}
+
+{% endblock %}
+
+{% block js %}
+function isEmpty(value) {
+    return value === '' || value === null || value === undefined;
+}
+
+function canDisable(handler) {
+    return function (event) {
+        if ($(event.delegateTarget).attr("data-disabled") === "true") {
+            return;
+        }
+        return handler(event);
+    };
+};
+
+function appIsDoneLoading() {
+    $("#loading-spinner").remove();
+    $("#loading-canvas").remove();
+}
+
+function appIsLoading() {
+    $("#app-input-area")
+        // Place canvas over app to created "greyed out" effect.
+        .append($("<canvas></canvas>")
+            .attr("id", "loading-canvas")
+            .css("z-index", "100")
+            .css("position", "absolute")
+            .css("left", $("#placed-tiles-board").position().left)
+            .css("top", $("#placed-tiles-board").position().top)
+            .prop("width", $("#app-input-area").width())
+            .prop("height", $("#app-input-area").height())
+            .css("background-color", "rgba(255, 255, 255, 0.7)"))
+
+        // Draw a (large) spinner to show loading.
+        .append($("<div></div>")
+            .attr("id", "loading-spinner")
+            .addClass("spinner")
+            .css("z-index", "100")
+            .css("border-width", 12)
+            .css("border-color", "#c3c3c3")
+            .css("border-top-color", "#3498db")
+            .css("width", "100px")
+            .css("height", "100px")
+            .css("margin", "auto")
+            .css("position", "fixed")
+            .css("top", $("#placed-tiles-board").position().top + $("#app-input-area").height() / 2 - 50)
+            .css("left", $("#placed-tiles-board").position().left + $("#app-input-area").width() / 2 - 50));
+}
+
+function toggleEnableInput(enable) {
+    toggleEnableMap(enable);
+    toggleEnableRailroads(enable);
+    toggleEnableRemovedRailroads(enable);
+    toggleEnablePrivateCompanies(enable);
+
+    $("#controls button").prop("disabled", !enable);
+    $("#calculate-dropdown button").prop("disabled", !enable);
+}
+
+function loadGameState() {
+    toggleEnableInput(false);
+    appIsLoading();
+
+    function loadState() {
+        $.when(
+            loadFromLocalStoragePlacedTiles(),
+            loadFromLocalStorageRailroads(),
+            loadFromLocalStorageRemovedRailroads(),
+            loadFromLocalStoragePrivateCompanies()
+        ).then(() => {
+            toggleEnableInput(true);
+            appIsDoneLoading();
+        });
+    }
+
+    // Wait until the map has finished loading to draw the saved map. This is likely to kick in if a cache-refresh page
+    // reload is issued.
+    $("#placed-tiles-board").one("load", loadState);
+    
+    // If the image was cached, it may be loaded by the time the above event is attached, so load the saved map immdeiately.
+    if ($("#placed-tiles-board").get(0).complete) {
+        $("#placed-tiles-board").off("load");
+        loadState();
+    }
+
+    
+}
+
+// Scale the map to fit on the screen
+$("#placed-tiles-board").height("100%").css("height", "-=" + $("#placed-tiles-board").offset().top);
+
+// Scale the private companies and railroads to fit on the map's right, unless its width is too small.
+var remainingSpace = window.innerWidth - $("#placed-tiles-board").width();
+if (remainingSpace < 300) {
+    $("#entry-section").before($("<br />"));
+    $("#entry-section").width(window.innerWidth - 50);
+} else {
+    $("#entry-section").width(remainingSpace - 50);
+}
+
+$("#global-import-save").click(function() {
+    toggleEnableInput(false);
+    appIsLoading();
+
+    $("#global-import-save").attr("disabled", true);
+    $("#tile-import-export-textarea").attr("readonly", true);
+    $("#railroads-import-export-textarea").attr("readonly", true);
+    $("#private-companies-import-export-textarea").attr("readonly", true);
+
+    importTiles($("#tiles-import-export-textarea").val())
+        .then(() => {
+            updateLocalStoragePlacedTiles();
+            importRailroads($("#railroads-import-export-textarea").val())
+                .then(() => {
+                    updateLocalStorageRailroads();
+                    importRemovedRailroads($("#railroads-import-export-textarea").val())
+                        .then(() => {
+                            updateLocalStorageRemovedRailroads();
+                            importPrivateCompanies($("#private-companies-import-export-textarea").val())
+                                .then(() => {
+                                    updateLocalStoragePrivateCompanies();
+                                })
+                                .then(() => {
+                                    var allRailroads = getRailroads();
+                                    var allRemovedRailroads = getRemovedRailroads();
+                                    if (allRailroads.length + getRemovedRailroads().length > new Set(getRailroads().concat(getRemovedRailroads())).size) {
+                                        allRailroads.forEach(railroad => {
+                                            if (allRemovedRailroads.includes(railroad)) {
+                                                deleteRemovedRailroad(railroad);
+                                            }
+                                        });
+                                    }
+
+                                    toggleEnableInput(true);
+                                    appIsDoneLoading();
+                                });
+                        });
+                });
+        });
+
+    clearCalculateTab();
+
+    $("#global-import-export-modal").modal("hide");
+});
+
+$("#global-import-export-modal").on("show.bs.modal", function() {
+    $("#global-import-save").attr("disabled", true);
+    $("#tiles-import-export-textarea").attr("readonly", true);
+    $("#railroads-import-export-textarea").attr("readonly", true);
+    $("#private-companies-import-export-textarea").attr("readonly", true);
+
+    $("#tiles-import-export-textarea").val("").val(prepareTilesForExport());
+    $("#railroads-import-export-textarea").val(prepareRailroadsForExport()
+            + "\n" + prepareRemovedRailroadsForExport());
+    $("#private-companies-import-export-textarea").val(preparePrivateCompaniesForExport());
+
+    $("#global-import-save").attr("disabled", false);
+    $("#tiles-import-export-textarea").attr("readonly", false);
+    $("#railroads-import-export-textarea").attr("readonly", false);
+    $("#private-companies-import-export-textarea").attr("readonly", false);
+
+    enableSubmitViaKeyboard($("#global-import-export-modal"), $("#global-import-save"));
+});
+
+{% include "js/placed-tiles-map.js.html" %}
+
+{% include "js/placed-tiles-table.js.html" %}
+
+{% include "js/railroads-table.js.html" %}
+
+{% include "js/removed-railroads-table.js.html" %}
+
+{% include "js/private-companies-table.js.html" %}
+
+{% include "js/calculate.js.html" %}
+
+{% include "js/report-issue.js.html" %}
+
+loadGameState();
+
+{% endblock %}

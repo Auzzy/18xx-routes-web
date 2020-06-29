@@ -1,0 +1,1177 @@
+var legalCoords = {{ tile_coords | safe }};
+var firstCoord = legalCoords[0];
+var lastCoord = legalCoords[legalCoords.length - 1];
+var currentCoordFocus = undefined;
+var cityNames = {{ city_names | safe }};
+var routeColors = [
+    "rgba(0, 255, 255, 0.8)",  // cyan
+    "rgba(255, 0, 255, 0.8)",  // fuchsia
+    "rgba(255, 178, 127, 1)",  // light tangelo
+    "rgba(255, 0, 0, 0.8)"     // red
+];
+var terminalCityBoundaries = {{ terminal_city_boundaries | safe }};
+
+function repositionCanvases() {
+    var mapImage = $("#placed-tiles-board").get(0);
+    $("#placed-tiles-board-canvas, #tile-focus-canvas, #stations-canvas, #routes-canvas")
+        .css("position", "absolute")
+        .css("left", mapImage.offsetLeft)
+        .css("top", mapImage.offsetTop)
+        .prop("width", mapImage.width)
+        .prop("height", mapImage.height);
+}
+
+function areNeighbors(rowAndCol1, rowAndCol2) {
+    return (rowAndCol1.row === rowAndCol2.row && rowAndCol1.col + 2 === rowAndCol2.col)
+        || (rowAndCol1.row === rowAndCol2.row && rowAndCol1.col - 2 === rowAndCol2.col)
+        || (rowAndCol1.row + 1 === rowAndCol2.row && rowAndCol1.col + 1 === rowAndCol2.col)
+        || (rowAndCol1.row + 1 === rowAndCol2.row && rowAndCol1.col - 1 === rowAndCol2.col)
+        || (rowAndCol1.row - 1 === rowAndCol2.row && rowAndCol1.col + 1 === rowAndCol2.col)
+        || (rowAndCol1.row - 1 === rowAndCol2.row && rowAndCol1.col - 1 === rowAndCol2.col);
+}
+
+function drawRoutesOnMap(routes) {
+    var routesCanvas = $("#routes-canvas").get(0);
+    var context = routesCanvas.getContext('2d');
+
+    for (var k = 0; k < routes.length; k++) {
+        var coords = routes[k][1];
+
+        var routeColor = routeColors[k % routeColors.length];
+
+        var routeContext = routesCanvas.getContext("2d");
+        routeContext.strokeStyle = routeColor;
+        routeContext.shadowBlur = 10;
+        routeContext.shadowColor = routeColor;
+        routeContext.lineWidth = routesCanvas.width * 0.0071;
+
+        routeContext.beginPath();
+
+        var rowAndCol = coordToRowAndCol(coords[0]);
+        var tileCenter = getTileCenter(routesCanvas, rowAndCol.row, rowAndCol.col);
+        routeContext.moveTo(tileCenter.x, tileCenter.y);
+
+        for (var index = 1; index < coords.length - 1; index++) {
+            var coordRowAndCol = coordToRowAndCol(coords[index]);
+            var enterCoordRowAndCol = coordToRowAndCol(coords[index - 1]);
+            var exitCoordRowAndCol = coordToRowAndCol(coords[index + 1]);
+
+            var coordTileCenter = getTileCenter(routesCanvas, coordRowAndCol.row, coordRowAndCol.col);
+            var exitCoordTileCenter = getTileCenter(routesCanvas, exitCoordRowAndCol.row, exitCoordRowAndCol.col);
+
+            var exitPoint = {x: (coordTileCenter.x + exitCoordTileCenter.x) / 2.0, y: (coordTileCenter.y + exitCoordTileCenter.y) / 2.0};
+
+            if (cityNames.hasOwnProperty(coords[index])) {
+                routeContext.lineTo(coordTileCenter.x, coordTileCenter.y);
+                routeContext.lineTo(exitPoint.x, exitPoint.y);
+            } else if (areNeighbors(enterCoordRowAndCol, exitCoordRowAndCol)) {
+                // Sharp curves
+                routeContext.arcTo(coordTileCenter.x, coordTileCenter.y, exitPoint.x, exitPoint.y, routesCanvas.width * 0.025);
+            } else {
+                // Shallow curves
+                routeContext.arcTo(coordTileCenter.x, coordTileCenter.y, exitPoint.x, exitPoint.y, routesCanvas.width * 0.077);
+            }
+        }
+
+        var finalRowAndCol = coordToRowAndCol(coords[coords.length - 1]);
+        var finalTileCenter = getTileCenter(routesCanvas, finalRowAndCol.row, finalRowAndCol.col);
+        routeContext.lineTo(finalTileCenter.x, finalTileCenter.y);
+
+        routeContext.stroke();
+    }
+}
+
+function clearAllHighlights() {
+    var canvas = $("#tile-focus-canvas").get(0);
+    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function keepHighlightVisible(tilePoints) {
+    var mapImg = $("#placed-tiles-board");
+
+    var tileOrigin = {
+        x: Math.min(...tilePoints.map(coord => coord.x)) + mapImg.offset().left,
+        y: Math.min(...tilePoints.map(coord => coord.y)) + mapImg.offset().top
+    }
+    var tileAntiOrigin = {
+        x: Math.max(...tilePoints.map(coord => coord.x)) + mapImg.offset().left,
+        y: Math.max(...tilePoints.map(coord => coord.y)) + mapImg.offset().top
+    };
+
+    var viewportTop = $(window).scrollTop();
+    var viewportBottom = viewportTop + window.innerHeight;
+    var viewportLeft = $(window).scrollLeft();
+    var viewportRight = viewportLeft + window.innerWidth;
+
+    var scrollTop = viewportTop;
+    var scrollLeft = viewportLeft;
+
+    if (tileOrigin.y < viewportTop) {
+        scrollTop = Math.max(mapImg.offset().top, viewportTop - ((viewportBottom - viewportTop) - (tileAntiOrigin.y - tileOrigin.y)));
+    } else if (tileAntiOrigin.y > viewportBottom) {
+        scrollTop = Math.min(mapImg.offset().top + mapImg.height(), viewportBottom - (tileAntiOrigin.y - tileOrigin.y));
+    }
+
+    if (tileOrigin.x < viewportLeft) {
+        scrollLeft = Math.max(mapImg.offset().left, viewportLeft - ((viewportRight - viewportLeft) - (tileAntiOrigin.x - tileOrigin.x)));
+    } else if (tileAntiOrigin.x > viewportRight) {
+        scrollLeft = Math.min(mapImg.offset().left + mapImg.width(), viewportRight - (tileAntiOrigin.x - tileOrigin.x));
+    }
+
+    window.scrollTo({
+        top: scrollTop,
+        left: scrollLeft,
+        behavior: 'smooth'
+    });
+
+}
+
+function highlightCoord(coord) {
+    var mapImg = $("#placed-tiles-board").get(0);
+    var focusCanvas = $("#tile-focus-canvas").get(0);
+    var context = focusCanvas.getContext('2d');
+
+    var rowAndCol = coordToRowAndCol(coord);
+    var tilePoints = getTilePoints(focusCanvas, rowAndCol.row, rowAndCol.col);
+
+    var focusContext = focusCanvas.getContext("2d");
+    focusContext.strokeStyle = "#00ffff";
+    focusContext.shadowBlur = 20;
+    focusContext.shadowColor = "#00ffff";
+    focusContext.lineWidth = 3;
+    focusContext.beginPath();
+    focusContext.moveTo(tilePoints[0].x, tilePoints[0].y);
+    tilePoints.slice(1).forEach(point => focusContext.lineTo(point.x, point.y));
+    focusContext.closePath();
+    focusContext.stroke();
+
+    keepHighlightVisible(tilePoints);
+}
+
+function drawMap() {
+    var mapCanvas = $("#placed-tiles-board-canvas").get(0);
+    mapCanvas.getContext('2d').clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+
+    getTilesAsTable().forEach(row => {
+        drawTileOnMap(row[0], row[1], row[2]);
+    });
+}
+
+function drawTileOnMap(coord, tileId, orientation) {
+    function drawTile(context, tileImage, tileOrigin, mapImg) {
+        context.drawImage(tileImage, tileOrigin.x, tileOrigin.y, mapImg.width * 0.088, mapImg.height * 0.121);
+    }
+
+    // Ensure we only draw if all 3 requirements are provided.
+    if (isEmpty(coord) || isEmpty(tileId) || isEmpty(orientation)) {
+        return;
+    }
+
+    var mapImg = $("#placed-tiles-board").get(0);
+    var mapCanvas = $("#placed-tiles-board-canvas").get(0);
+    var context = mapCanvas.getContext('2d');
+
+    var rowAndCol = coordToRowAndCol(coord);
+    var tileOrigin = getTileTopLeft(mapCanvas, rowAndCol.row, rowAndCol.col);
+
+    var orientationStr = orientation.toString();
+    var tileIdStr = tileId.toString().padStart(3, "0");
+    var imgSrc = `{{ url_for('static', filename='images/tiles') }}/${tileIdStr}-${orientationStr}.png`;
+
+    var tileImage = new Image();
+    tileImage.src = imgSrc;
+
+    // Draws the tile after it's loaded...
+    $(tileImage).one("load", function() {
+        drawTile(context, tileImage, tileOrigin, mapImg);
+    });
+
+    // ...as well as if it was already loaded
+    drawTile(context, tileImage, tileOrigin, mapImg);
+}
+
+function removeTileFromMap(coord) {
+    if (isEmpty(coord)) {
+        return;
+    }
+
+    var mapImg = $("#placed-tiles-board").get(0);
+    var mapCanvas = $("#placed-tiles-board-canvas").get(0);
+
+    var rowAndCol = coordToRowAndCol(coord);
+    var tilePoints = getTilePoints(mapCanvas, rowAndCol.row, rowAndCol.col);
+
+    var mapContext = mapCanvas.getContext("2d");
+    mapContext.globalCompositeOperation = 'destination-out';
+    mapContext.beginPath();
+    mapContext.moveTo(tilePoints[0].x, tilePoints[0].y);
+    tilePoints.slice(1).forEach(point => mapContext.lineTo(point.x, point.y));
+    mapContext.closePath();
+    mapContext.fill();
+    mapContext.globalCompositeOperation = 'source-over';
+}
+
+function drawTokens() {
+    var stationCanvas = $("#stations-canvas").get(0);
+    stationCanvas.getContext('2d').clearRect(0, 0, stationCanvas.width, stationCanvas.height);
+
+    var stationCountByCoord = {};
+    getRailroadsAsTable().forEach(railroad => {
+        if (!isEmpty(railroad[2])) {
+            railroad[2].split(",").forEach(coord => {
+                coord = coord.trim();
+                if (!(coord in stationCountByCoord)) {
+                    stationCountByCoord[coord] = 0;
+                }
+
+                var chicagoNeighbor = coord === chicago ? railroad[3] : undefined;
+                drawStationOnMap(coord, chicagoNeighbor, stationCountByCoord[coord], railroad[0]);
+                stationCountByCoord[coord]++;
+            });
+        }
+    });
+
+    getRemovedRailroads().forEach(railroad => {
+        var coord = getRemovedRailroadsAsTable().find(row => row[0] === railroad)[1];
+        if (!(coord in stationCountByCoord)) {
+            stationCountByCoord[coord] = 0;
+        }
+
+        drawStationOnMap(coord, undefined, stationCountByCoord[coord], railroad);
+        stationCountByCoord[coord]++;
+    });
+
+    getPhase()
+        .done(phase => {
+            if (phase < 3) {
+                getPrivateCompaniesAsTable().forEach(company => {
+                    if (indRailroadNames.includes(company[0])) {
+                        if (isEmpty(company[1])) {
+                            var coord = company[2].trim();
+                            if (!(coord in stationCountByCoord)) {
+                                stationCountByCoord[coord] = 0;
+                            }
+
+                            drawStationOnMap(coord, null, stationCountByCoord[coord], company[0]);
+                            stationCountByCoord[coord]++;
+                        }
+                    }
+                });
+            }
+            if (phase < 4) {
+                getPrivateCompaniesAsTable().forEach(company => {
+                    if (["Steamboat Company", "Meat Packing Company"].includes(company[0])) {
+                        if (!isEmpty(company[1]) && !isEmpty(company[2])) {
+                            drawPrivateCompanyOnMap(company[2].trim(), company[0]);
+                        }
+                    }
+                });
+            }
+        });
+}
+
+function drawPrivateCompanyOnMap(coord, privateCompanyName) {
+    var stationCanvas = $("#stations-canvas").get(0);
+    var stationContext = stationCanvas.getContext("2d");
+
+    var rowAndCol = coordToRowAndCol(coord);
+    var spacePoints = getTilePoints(stationCanvas, rowAndCol.row, rowAndCol.col);
+    var spaceOrigin = getTileTopLeft(stationCanvas, rowAndCol.row, rowAndCol.col);
+    var spaceSize = {
+        width: Math.max(...spacePoints.map(coord => coord.x)) - Math.min(...spacePoints.map(coord => coord.x)),
+        height: Math.max(...spacePoints.map(coord => coord.y)) - Math.min(...spacePoints.map(coord => coord.y))
+    };
+
+    var imgSrc = `{{ url_for('static', filename='images/tokens') }}/${privateCompanyName}.png`;
+
+    var tokenImage = new Image();
+    tokenImage.src = imgSrc;
+    tokenImage.width = spaceSize.width * 0.20;
+    tokenImage.height = spaceSize.height * 0.175;
+
+    getPrivateCompanySpaceInfo(coord, privateCompanyName, (spaceInfo) => {
+        // Draws the token after it's loaded...
+        $(tokenImage).one("load", function() {
+            drawPrivateCompany(stationContext, tokenImage, spaceOrigin, spaceInfo);
+        });
+
+        // ...as well as if it was already loaded
+        drawPrivateCompany(stationContext, tokenImage, spaceOrigin, spaceInfo);
+    });
+}
+
+function drawPrivateCompany(context, tokenImage, spaceOrigin, spaceInfo) {
+    var offset = spaceInfo["offset"];
+
+    var x = spaceOrigin.x + tokenImage.width * offset["x"] - tokenImage.width / 2;
+    var y = spaceOrigin.y + tokenImage.height * offset["y"];
+
+    context.drawImage(tokenImage, x, y, tokenImage.width, tokenImage.height);
+}
+
+function drawStationOnMap(coord, chicago, stationCount, railroadName) {
+    var stationCanvas = $("#stations-canvas").get(0);
+    var stationContext = stationCanvas.getContext("2d");
+
+    var rowAndCol = coordToRowAndCol(coord);
+    var tilePoints = getTilePoints(stationCanvas, rowAndCol.row, rowAndCol.col);
+
+    var tileCenter = getTileCenter(stationCanvas, rowAndCol.row, rowAndCol.col);
+    var tileSize = {
+        width: Math.max(...tilePoints.map(coord => coord.x)) - Math.min(...tilePoints.map(coord => coord.x)),
+        height: Math.max(...tilePoints.map(coord => coord.y)) - Math.min(...tilePoints.map(coord => coord.y))
+    };
+
+    var imgSrc = `{{ url_for('static', filename='images/tokens') }}/${railroadName}.png`;
+
+    var stationImage = new Image();
+    stationImage.src = imgSrc;
+    stationImage.width = tileSize.width * 0.295;
+    stationImage.height = tileSize.height * 0.255;
+
+    getTileInfo(coord, chicago, (tileInfo) => {
+        // Draws the station after it's loaded...
+        $(stationImage).one("load", function() {
+            drawStation(stationContext, stationImage, tileCenter, stationCount, tileInfo, stationCanvas);
+        });
+
+        // ...as well as if it was already loaded
+        drawStation(stationContext, stationImage, tileCenter, stationCount, tileInfo, stationCanvas);
+    });
+}
+
+function drawStation(context, stationImage, tileCenter, stationCount, tileInfo, mapImg) {
+    var capacity = tileInfo["capacity"];
+    var orientation = tileInfo["orientation"];
+    var offset = tileInfo["offset"];
+
+    var x = 0;
+    var y = 0;
+    if (capacity === 1 || capacity === 4) {
+        // Due to some magic in the tileInfo object, Chiacgo is handled the same as a capcaity 1 tile
+        x = tileCenter.x - (stationImage.width / 2.0) + stationImage.width * offset["x"];
+        y = tileCenter.y - (stationImage.height / 2.0) + stationImage.height * offset["y"];
+    } else if (capacity === 2) {
+        orientation = isEmpty(orientation) ? -0.5 : orientation;
+        var angle = Math.PI / 6 + orientation * Math.PI / 3 + stationCount * Math.PI;
+        var xOffset = -(stationImage.width / 2 + 3) * Math.cos(angle) - -0 * Math.sin(angle);
+        var yOffset = -(stationImage.width / 2 + 3) * Math.sin(angle) + -0 * Math.cos(angle);
+
+        x = tileCenter.x - (stationImage.width / 2) + xOffset;
+        y = tileCenter.y - (stationImage.height / 2) + yOffset;
+    } else if (capacity === 3) {
+        orientation = isEmpty(orientation) ? -0.5 : orientation;
+        var angle = Math.PI / 3 + orientation * Math.PI / 3 + stationCount * 2 * Math.PI / 3;
+        var xOffset = -(stationImage.width / 2 + 5) * Math.cos(angle) - -0 * Math.sin(angle);
+        var yOffset = -(stationImage.width / 2 + 5) * Math.sin(angle) + -0 * Math.cos(angle);
+
+        x = tileCenter.x - (stationImage.width / 2) + xOffset;
+        y = tileCenter.y - (stationImage.height / 2) + yOffset;
+    }
+
+    context.drawImage(stationImage, x, y, stationImage.width, stationImage.height);
+}
+
+function rowAndColToCoord(rowAndCol) {
+    // We add 1 since the first row with valid placements is B.
+    var rowStr = String.fromCharCode(rowAndCol.row + 1 + 65);
+    // We add 1 to align it with the column numbers, and another since the first column with valid placements is 2.
+    var colStr = (rowAndCol.col + 1 + 1).toString();
+    return `${rowStr}${colStr}`;
+}
+
+function coordToRowAndCol(coord) {
+    return {
+        // We remove 1 since we treat the first row as 0 for purposes of calcaulation (even though it's B).
+        row: coord.charCodeAt(0) - 65 - 1,
+        col: parseInt(coord.substring(1), 10) - 2
+    };
+}
+
+function getHexPoints(origin, img) {
+    return [
+        {x: origin.x, y: origin.y + img.height * 0.029},
+        {x: origin.x + img.width * 0.044, y: origin.y},
+        {x: origin.x + img.width * 0.088, y: origin.y + img.height * 0.029},
+        {x: origin.x + img.width * 0.088, y: origin.y + img.height * 0.091},
+        {x: origin.x + img.width * 0.044, y: origin.y + img.height * 0.121},
+        {x: origin.x, y: origin.y + img.height * 0.091}
+    ]
+}
+
+function getTileTopLeft(mapImage, row, col) {
+    var startX = mapImage.width * 0.027;
+    var startY = mapImage.height * 0.023;
+
+    var xcoord = startX + col * (mapImage.width * 0.0442);
+    var ycoord = startY + row * (mapImage.height * 0.091);
+
+    return {x: xcoord, y: ycoord};
+}
+
+function getTileCenter(mapImage, row, col) {
+    var tilePoints = getTilePoints(mapImage, row, col);
+    return {
+        x: (Math.max(...tilePoints.map(coord => coord.x)) + Math.min(...tilePoints.map(coord => coord.x))) / 2,
+        y: (Math.max(...tilePoints.map(coord => coord.y)) + Math.min(...tilePoints.map(coord => coord.y))) / 2
+    };
+}
+
+function getTilePoints(mapImage, row, col) {
+    var origin = getTileTopLeft(mapImage, row, col);
+    return getHexPoints(origin, mapImage);
+}
+
+function mapPointToTile(img, point) {
+    for (row = 0; row < 9; row++) {
+        var col = row % 2 == 0 ? 0 : 1;
+        for (; col < 21; col += 2) {
+            var tilePoints = getTilePoints(img, row, col);
+            if (isPointInPoly(tilePoints, point)) {
+                return {row: row, col: col};
+            }
+        }
+    }
+}
+
+function populateTileSelectorPrivateCompanyDropdown(privateCompanyContent, coord) {
+    var dropdownMenu = privateCompanyContent.find(".dropdown-menu");
+    dropdownMenu.empty();
+
+    var companyName = privateCompanyContent.attr("data-name");
+    var companyRow = getPrivateCompaniesAsTable().find(row => row[0] === companyName);
+
+    getRailroadsAsTable()
+        .forEach(railroad => {
+            if (companyRow[2] === coord && companyRow[1] === railroad[0]) {
+                return;
+            }
+
+            dropdownMenu
+                .append($("<a></a>")
+                    .addClass("dropdown-item")
+                    .attr("data-owner", railroad[0])
+                    .attr("href", "#")
+                    .text(railroad[0])
+                    .click(function() {
+                        var row = getPrivateCompanyRow(privateCompanyContent.attr("data-name"));
+                        setPrivateCompanyOwner(row, $(this).attr("data-owner"));
+                        setPrivateCompanyTokenCoord(row, coord);
+                        drawTokens();
+
+                        tileSelectorPrivateCompaniesDisplayOwner(privateCompanyContent, true);
+
+                        updateLocalStoragePrivateCompanies();
+                    }));
+        });
+}
+
+function tileSelectorPrivateCompaniesDisplayOwner(privateCompanyContent, isTokenHere) {
+    privateCompanyContent.find("div[data-owner]").remove();
+
+    var companyName = privateCompanyContent.attr("data-name");
+    var ownerName = getPrivateCompaniesAsTable().find(row => row[0] === companyName)[1];
+    if (isTokenHere && !isEmpty(ownerName)) {
+        privateCompanyContent.find(".dropdown-toggle").text(`Change ${companyName} owner`);
+
+        privateCompanyContent
+            .append($("<div></div>")
+                .css("margin-top", 10)
+                .attr("data-owner", ownerName)
+                .append($("<span></span>")
+                    .css("font-weight", "bold")
+                    .text("Owner"))
+                .append($("<span></span>")
+                    .css("margin-left", 5)
+                    .text(ownerName))
+                .append($("<button></button>")
+                    .addClass("btn btn-sm btn-outline-danger")
+                    .css("margin-left", 10)
+                    .attr("type", "button")
+                    .append($("<span></span>")
+                        .addClass("oi oi-delete"))
+                    .click(function() {
+                        removePrivateCompany(`${companyName}`);
+                        tileSelectorPrivateCompaniesDisplayOwner(privateCompanyContent, false);
+                        drawTokens();
+                    })));
+    } else {
+        privateCompanyContent.find(".dropdown-toggle").text(`Place ${companyName} token`);
+    }
+}
+
+function populatePrivateCompanies(coord) {
+    getPhase()
+        .done(phase => {
+            $("#tile-selector-private-companies-content").empty();
+
+            if (phase >= 4) {
+                $("#tile-selector-private-companies").hide();
+                return;
+            }
+
+            // This slightly awkward construction allows checking if this space
+            // is a legal spot for any private company.
+        
+            var companyNames = ["Steamboat Company", "Meat Packing Company"];
+            var tokenCoordPromises = Promise.all(companyNames.map(companyName => {
+                return $.get("{{ url_for('legal_token_coords') }}", {companyName: companyName})
+            }));
+        
+            $.when(tokenCoordPromises)
+                .then(function(tokenCoordResponses) {
+                    var validCompanyNames = tokenCoordResponses
+                        .map((response, index) => [companyNames[index], response["coords"]])
+                        .filter(nameAndCoords => nameAndCoords[1].includes(coord))
+                        .map(nameAndCoords => nameAndCoords[0]);
+        
+                    if (validCompanyNames.length === 0) {
+                        $("#tile-selector-private-companies").hide();
+                        return;
+                    }
+        
+                    $("#tile-selector-private-companies").show();
+        
+                    validCompanyNames.forEach(companyName => {
+                        var companyRow = getPrivateCompaniesAsTable().find(row => row[0] === companyName);
+                        var privateCompanyContent = $("<div></div>")
+                            .attr("data-name", `${companyName}`)
+                            .css("margin-bottom", 10)
+                            .append($("<div></div>")
+                                .addClass("dropdown")
+                                .append($("<button></button>")
+                                    .addClass("btn btn-sm btn-outline-success dropdown-toggle")
+                                    .attr("type", "button")
+                                    .attr("data-toggle", "dropdown")
+                                    .attr("aria-haspopup", "true")
+                                    .attr("aria-expanded", "false")
+                                    .text(`Place ${companyName} token`))
+                                .append($("<div></div>")
+                                    .addClass("dropdown-menu"))
+                                .on("show.bs.dropdown", function() {
+                                    populateTileSelectorPrivateCompanyDropdown($(privateCompanyContent), coord);
+                                }));
+        
+                        var isTokenHere = !isEmpty(companyRow[2]) && companyRow[2] === coord;
+                        tileSelectorPrivateCompaniesDisplayOwner($(privateCompanyContent), isTokenHere);
+        
+                        $("#tile-selector-private-companies-content").append(privateCompanyContent);
+                    });
+            });
+        });
+}
+
+function placeStationButton(parent, coord, neighbor) {
+    parent
+        .append($("<span></span>")
+            .addClass("dropdown")
+            .append($("<button></button>")
+                .addClass("btn btn-outline-success dropdown-toggle")
+                .attr("type", "button")
+                .attr("data-toggle", "dropdown")
+                .attr("aria-haspopup", "true")
+                .attr("aria-expanded", "false")
+                .append($("<span></span>")
+                    .addClass("oi oi-plus")))
+            .append($("<div></div>")
+                .addClass("dropdown-menu"))
+            .on("show.bs.dropdown", function() {
+                populateTileSelectorStationDropdown(parent, coord, neighbor);
+            }));
+}
+
+function tileModalStationEntry(coord, railroadName) {
+    var stationEntry = $("<div></div>")
+        .css("padding", "10px 0px")
+        .append($("<img></img>")
+            .attr("src", `{{ url_for('static', filename='images/tokens') }}/${railroadName}.png`)
+            .attr("height", 25)
+            .attr("width", 25)
+            .css("margin-right", 5))
+        .append($("<span></span>")
+            .text(railroadName));
+
+    var railroadRow = getRailroadRow(railroadName);
+    var indRailroadCoords = getIndependentRailroadsAsTable()
+        // If the railroad entry either is an independent railroad, or the owner
+        // of an independent railroad, that station's location should be uneditable.
+        .filter(railroad => [railroad[0], railroad[1]].includes(railroadName))
+        .map(railroad => railroad[2]);
+    var uneditableStations = indRailroadCoords.concat([railroadRow.attr("data-home")]);
+    if (!uneditableStations.includes(coord)) {
+        stationEntry
+            .append($("<button></button>")
+                .addClass("btn btn-sm btn-outline-danger")
+                .css("margin-left", 10)
+                .attr("type", "button")
+                .append($("<span></span>")
+                    .addClass("oi oi-delete"))
+                .click(function() {
+                    removeRailroadStation(railroadRow, coord);
+                    populateStations(coord);
+                    drawTokens();
+                    clearCalculateTab();
+
+                    updateLocalStorageRailroads();
+                }));
+    }
+
+    return stationEntry;
+}
+
+function populateStations(coord) {
+    getPhase()
+        .done(phase => {
+            var railroadsAtCoord = getRailroadsAsTable();
+            if (phase < 3) {
+                railroadsAtCoord = railroadsAtCoord
+                    .concat(getIndependentRailroadsAsTable()
+                        .filter(railroad => isEmpty(railroad[1])));
+            }
+            railroadsAtCoord = railroadsAtCoord
+                .filter(railroad => {
+                    return !isEmpty(railroad[2]) &&
+                        railroad[2].split(",").find(stationCoord => coord === stationCoord.trim()) !== undefined;
+                });
+
+            $("#tile-stations").empty();
+            $("#add-tile-stations").empty();
+
+            if (cityNames.hasOwnProperty(coord)) {
+                $("#tile-selector-stations").show();
+            } else {
+                $("#tile-selector-stations").hide();
+                return;
+            }
+
+            if (coord == chicago) {
+                $.get("{{ url_for('chicago_stations') }}")
+                    .done(response => {
+                        response["chicago-stations"].forEach(neighbor => {
+                            var railroad = getRailroadsAsTable().find(railroadEntry => neighbor === railroadEntry[3]);
+                            var stationEntry = null;
+                            if (railroad === undefined) {
+                                stationEntry = $("<div></div>").css("padding", "10px 0px");
+                            } else {
+                                stationEntry = tileModalStationEntry(coord, railroad[0]);
+                            }
+
+                            $("#tile-stations").append(
+                                stationEntry
+                                    .prepend($("<span></span>")
+                                        .css("margin-right", 5)
+                                        .css("font-weight", "bold")
+                                        .css("font-size", "1.25em")
+                                        .text(neighbor)));
+
+                            if (railroad === undefined) {
+                                placeStationButton(stationEntry, coord, neighbor);
+                            }
+                        });
+                    });
+            } else if (cityNames.hasOwnProperty(coord)) {
+                Array.from(new Set(railroadsAtCoord)).forEach(railroad => {
+                    $("#tile-stations").append(tileModalStationEntry(coord, railroad[0]));
+                });
+
+                placeStationButton($("#add-tile-stations"), coord);
+            }
+        });
+}
+
+function populateTileSelectorStationDropdown(sourceRow, coord, neighbor) {
+    var dropdownMenu = sourceRow.find(".dropdown-menu");
+    dropdownMenu.empty();
+
+    getRailroadsAsTable()
+        .forEach(railroad => {
+            if (railroad[2].split(",").includes(coord)) {
+                return
+            }
+
+            dropdownMenu
+                .append($("<a></a>")
+                    .addClass("dropdown-item")
+                    .attr("data-owner", railroad[0])
+                    .attr("href", "#")
+                    .text(railroad[0])
+                    .click(function() {
+                        var row = getRailroadRow(railroad[0]);
+                        addRailroadStation(row, coord, neighbor);
+                        populateStations(coord);
+                        drawTokens();
+                        clearCalculateTab();
+
+                        updateLocalStorageRailroads();
+                    }));
+        });
+}
+
+function scrollTopHidden(parent, scrollItem, scrollOffset) {
+    // Hack to get around scrollTop only working on visible elements.
+    var origDisplay = parent.css("display");
+    var origVisibility = parent.css("visibility");
+
+    parent.css("visibility", "hidden");
+    parent.css("display", "block");
+
+    // Set scroll bar to the selected tile
+    scrollItem.scrollTop(scrollOffset);
+
+    // Reset hack
+    parent.css("display", origDisplay);
+    parent.css("visibility", origVisibility);
+}
+
+function setOpacity(element, alpha) {
+    var alphaPercent = alpha * 100;
+    return element
+        .css("opacity", alpha.toString())
+        // IE 8
+        .css("-ms-filter", `progid:DXImageTransform.Microsoft.Alpha(Opacity=${alphaPercent})`)
+        /* IE 7 */
+        .css("filter", `alpha(opacity=${alphaPercent})`);
+}
+
+function populateOrientations(sourceTile, coord, tileId) {
+    function highlightOrientation(source) {
+        // Highlight the orientation as selected. This is both to preserve the old paradigm, and to
+        // provide some visual cues if a bug occurs.
+        $("#tile-orientations").children().each(function (k, element) {
+            if (element != source) {
+                setOpacity($(element), .2);
+            }
+        });
+
+        setOpacity($(source), 1);
+
+        $("#tile-orientations > .active").removeClass("active");
+        $(source).addClass("active");
+    }
+
+    function selectOrientation(source) {
+        highlightOrientation(source);
+
+        // Commit the selection and close the modal
+        var coord = $(source).attr("data-coord");
+        var tileId = $(source).attr("data-tile-id");
+        var orientation = $(source).attr("data-orientation");
+
+        placeTile(coord, tileId, orientation);
+        drawTileOnMap(coord, tileId, orientation);
+        drawTokens();
+        clearCalculateTab();
+
+        $('#tile-selector').modal('hide');
+    }
+
+    var sourceOutline = $(sourceTile).css("outline");
+    return $.get("{{ url_for('legal_orientations') }}", {coord: coord, tileId: tileId})
+        .then(function(result) {
+            $("#tile-orientations").empty();
+
+            // Reset the tile orientation viewport
+            $("#tile-orientations").offset({"top": $("#tile-selector-tiles-content").offset().top});
+
+            for (index in result["legal-orientations"]) {
+                var orientation = result["legal-orientations"][index];
+                var orientationStr = orientation.toString();
+                var tileIdStr = tileId.toString().padStart(3, "0");
+                var imgSrc = `{{ url_for('static', filename='images/tiles') }}/${tileIdStr}-${orientationStr}.png`;
+
+                // The img is wrapped in a div because I couldn't draw an outline on the img itself when it received
+                // focus. I am unclear as to why. But I found that letting the div get focus and outlining the img
+                // works. So sure.
+                var tileImage = $("<div></div>")
+                    .css("margin-bottom", "10px")
+                    .css("position", "relative")
+                    .attr("data-coord", coord)
+                    .attr("data-tile-id", tileId)
+                    .attr("data-orientation", orientation)
+                    .attr("tabIndex", "-1")
+                    .append($("<img></img>")
+                        .attr("src", imgSrc)
+                        .attr("width", "88px")
+                        .attr("height", "100px")
+                    )
+                    .click(function(event) {
+                        selectOrientation(this);
+                    })
+                    .keydown(function(event) {
+                        if (event.key === "Enter") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            event.stopImmediatePropagation();
+
+                            selectOrientation(this);
+                        } else if (event.key === "Tab") {
+                            event.stopImmediatePropagation();
+                            event.stopPropagation();
+                            event.preventDefault();
+
+                            var tileId = $(this).attr("data-tile-id");
+                            var index = $(this).index();
+                            if (event.shiftKey) {
+                                if (index === 0) {
+                                    $("#tile-options").find(`img[data-tile-id='${tileId}']`).prev().focus();
+                                } else {
+                                    $(this).prev().focus();
+                                }
+                            } else {
+                                if (index === result["legal-orientations"].length - 1) {
+                                    $("#tile-options").find(`img[data-tile-id='${tileId}']`).next().focus();
+                                } else {
+                                    $(this).next().focus();
+                                }
+                            }
+                        }
+                    })
+                    .focus(function(event) {
+                        $(this).children().css("outline", sourceOutline)
+                    })
+                    .blur(function(event) {
+                        $(this).children().css("outline", "");
+                    });
+                
+                $("#tile-orientations").append(setOpacity(tileImage, 1));
+            }
+        })
+        .then(function() {
+            var tileInfo = getTileAtCoord(coord);
+            if (tileInfo !== null && tileInfo[1] === tileId) {
+                highlightOrientation($(`#tile-orientations div[data-orientation='${tileInfo[2]}']`));
+            }
+        });
+}
+
+function populateTiles(coord) {
+    function selectTile(source) {
+        $("#tile-options").children().each(function (index, element) {
+            if (element != source) {
+                setOpacity($(element), .2);
+            }
+        });
+
+        setOpacity($(source), 1);
+
+        populateOrientations(source, $(source).attr("data-coord"), $(source).attr("data-tile-id"))
+            .done(function() {
+                $("#tile-orientations").children().first().focus();
+                scrollTopHidden($("#tile-selector"), $("#tile-selector-tiles-content"), $(source).index() * 98);
+
+                var orientationTileNum = $("#tile-orientations > .active").index();
+                $("#tile-orientations")
+                    .css("top", ($(source).index() - orientationTileNum) * 98);
+            });
+
+        $("#tile-options > .active").removeClass("active");
+        $(source).addClass("active");
+    }
+
+    $("#delete-tile-button").attr("data-coord", coord);
+
+    $.get("{{ url_for('legal_tiles') }}", {coord: coord})
+        .then(function(result) {
+            $("#tile-options").empty();
+            $("#tile-orientations").empty();
+
+            for (index in result["legal-tile-ids"]) {
+                var tileId = result["legal-tile-ids"][index];
+                var tileIdStr = tileId.toString().padStart(3, "0");
+                var imgSrc = `{{ url_for('static', filename='images/tiles') }}/${tileIdStr}.png`;
+            
+                var tileImage = $("<img></img>")
+                    .attr("src", imgSrc)
+                    .attr("width", "100px")
+                    .attr("height", "88px")
+                    .attr("tabIndex", "0")
+                    .css("display", "block")
+                    .css("margin-bottom", "10px")
+                    .attr("data-coord", coord)
+                    .attr("data-tile-id", tileId)
+                    .click(function() {
+                        selectTile(this);
+                    })
+                    .keydown(function(event) {
+                        if (event.key === "Enter") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            event.stopImmediatePropagation();
+
+                            selectTile(this);
+                        } else if (event.key == "Tab") {
+                            if ($(this).hasClass("active")) {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                event.stopImmediatePropagation();
+                                if (event.shiftKey) {
+                                    $("#tile-orientations").children().last().focus();
+                                } else {
+                                    $("#tile-orientations").children().first().focus();
+                                }
+                            }
+                        }
+                    });
+
+                $("#tile-options").append(setOpacity(tileImage, 1));
+            }
+
+            if (result["legal-tile-ids"].length === 0) {
+                $("#tile-selector-tiles").hide();
+            } else {
+                $("#tile-selector-tiles").show();
+            }
+        })
+        .done(function() {
+            var tileInfo = getTileAtCoord(coord);
+            if (tileInfo !== null) {
+                selectTile($(`#tile-options img[data-tile-id='${tileInfo[1]}']`));
+            }
+        });
+}
+
+function setTileSelectorModalHeader(coord) {
+    if (cityNames.hasOwnProperty(coord)) {
+        $("#tileSelectorLabel").text(cityNames[coord] + " (" + coord + ")");
+    } else {
+        $("#tileSelectorLabel").text(coord);
+    }
+}
+
+function keepOnScreen(viewport, content) {
+    // Don't let the bottom of the tile orientation list pass the bottom of the modal viewport
+    var viewportBottom = viewport.offset().top + viewport.height();
+    var contentBottom = content.offset().top + content.height();
+    if (viewportBottom > contentBottom) {
+        content.offset({"top": viewportBottom - content.height()});
+    }
+
+    // Don't let the top of the tile orientation list pass the top of the modal viewport
+    var viewportTop = viewport.offset().top;
+    var contentTop = content.offset().top;
+    if (viewportTop < contentTop) {
+        content.offset({"top": viewportTop});
+    }
+}
+
+$("#tile-selector-tiles-content").scroll(function(event) {
+    keepOnScreen($("#tile-selector-tiles-content"), $("#tile-orientations"));
+});
+
+function getClickableTerminalCityCoord(pointOnImage) {
+    var mapImage = $("#tile-focus-canvas").get(0);
+
+    var terminalContext = mapImage.getContext("2d");
+    terminalContext.strokeStyle = "rgba(0, 255, 255, 0.5)";
+    terminalContext.lineWidth = 3;
+
+    for (var name in terminalCityBoundaries) {
+        var boundaryPoints = terminalCityBoundaries[name].map(data => {
+            return {x: data.x * mapImage.width, y: data.y * mapImage.height}
+        });
+
+        if (isPointInPoly(boundaryPoints, pointOnImage)) {
+            return Object.entries(cityNames).find(coordAndName => name === coordAndName[1])[0];
+        }
+    }
+
+    return undefined;
+}
+
+function openTileSelectionModal(rowAndCol, pointOnImage) {
+    var clickableTerminalCityCoord = getClickableTerminalCityCoord(pointOnImage);
+    if (clickableTerminalCityCoord !== undefined) {
+        getPhase()
+            .done(phase => {
+                if (phase >= 4) {
+                    return;
+                }
+
+                clearAllHighlights();
+                setTileSelectorModalHeader(clickableTerminalCityCoord);
+                populatePrivateCompanies(clickableTerminalCityCoord);
+        
+                $("#tile-selector-tiles").hide();
+                $("#tile-selector-stations").hide();
+                $("#tile-selector").modal("show");
+            });
+    } else if (rowAndCol !== undefined) {
+        var coord = rowAndColToCoord(rowAndCol);
+        if (legalCoords.includes(coord)) {
+            clearAllHighlights();
+            highlightCoord(coord);
+            setTileSelectorModalHeader(coord);
+            populateTiles(coord);
+            populateStations(coord);
+            populatePrivateCompanies(coord);
+
+            // Ensure the modal always shows tiles when opened
+            $("#tile-selector-tiles").click();
+            $("#tile-selector").attr("data-coord", coord);
+            $("#tile-selector").modal("show");
+        }
+    }
+}
+
+$("#tile-focus-canvas").click(canDisable(function(event) {
+    var posXOnImg = event.pageX - $("#tile-focus-canvas").offset().left;
+    var posYOnImg = event.pageY - $("#tile-focus-canvas").offset().top;
+
+    var rowAndCol = mapPointToTile($("#tile-focus-canvas").get(0), {x: posXOnImg, y: posYOnImg});
+    openTileSelectionModal(rowAndCol, {x: posXOnImg, y: posYOnImg});
+}));
+
+$("#delete-tile-button").click(function(event) {
+    var coord = $(this).attr("data-coord");
+
+    removeTile(coord);
+    removeTileFromMap(coord);
+    drawTokens();
+    clearCalculateTab();
+});
+
+$("#tile-selector").on("show.bs.modal", function() {
+    // Hack to get around scrollTop only working on visible elements.
+    scrollTopHidden($("#tile-selector"), $("#tile-selector-tiles-content"), 0);
+    keepOnScreen($("#tile-selector-tiles-content"), $("#tile-orientations"));
+});
+
+$("#tile-selector").on("shown.bs.modal", function() {
+    keepOnScreen($("#tile-selector-tiles-content"), $("#tile-orientations"));
+    $("#tile-selector-modal-body-tabs .nav-item a:visible").first().click();
+});
+
+$("#tile-selector").on("hidden.bs.modal", function() {
+    currentCoordFocus = $('#tile-selector').attr("data-coord");
+    $("#placed-tiles-board").focus();
+});
+
+$("#confirm-clear-map-modal-confirm").click(function() {
+    tilesTable = [];
+    updateLocalStoragePlacedTiles();
+    drawMap();
+    drawTokens();
+    clearCalculateTab();
+});
+
+async function importTiles(importText) {
+    var importTableData = [];
+    await Promise.all(importText.trim().split("\n").map(rowStr => {
+        var rowData = rowStr.split(";", 3).map(cell => cell.trim());
+
+        return $.get("{{ url_for('legal_orientations') }}", {coord: rowData[0], tileId: rowData[1]})
+            .done(function(legalOrientationsResponse) {
+                var legalOrientations = legalOrientationsResponse["legal-orientations"];
+                if (isEmpty(legalOrientations) || !legalOrientations.includes(parseInt(rowData[2]))) {
+                    return;
+                }
+
+                importTableData.push(rowData);
+            });
+    }));
+
+    var coordsInTable = [];
+    tilesTable = [];
+    importTableData.forEach(row => {
+        if (coordsInTable.includes(row[0])) {
+            return;
+        }
+
+        coordsInTable.push(row[0]);
+        tilesTable.push(row.map(value => value.toString()));
+    });
+
+    drawMap();
+    drawTokens();
+
+    return Promise.resolve();
+}
+
+function prepareTilesForExport(exportTilesTable) {
+    exportTilesTable = exportTilesTable === undefined ? getTilesAsTable() : exportTilesTable;
+    return exportTilesTable.map(row => row.join("; ")).join("\n");
+}
+
+function toggleEnableMap(enable) {
+    var disabled = enable ? "false" : "true";
+    $("#tile-focus-canvas").attr("data-disabled", disabled);
+    $("#placed-tiles-board").attr("data-disabled", disabled);
+}
+
+$("#placed-tiles-board").focus(canDisable(function(event) {
+    if (currentCoordFocus === undefined) {
+        // This condition only seems to be true if focus is coming from SHIFT+TAB, maybe because it's the final element
+        // on the page. For now, that's good enough for me.
+        currentCoordFocus = event.relatedTarget === null ? lastCoord : firstCoord;
+    }
+
+    clearAllHighlights();
+    highlightCoord(currentCoordFocus);
+}));
+
+$("#placed-tiles-board").keydown(canDisable(function(event) {
+    if (event.key === "Tab") {
+        if (event.shiftKey) {
+            if (currentCoordFocus === firstCoord) {
+                currentCoordFocus = undefined;
+            } else {
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+
+                currentCoordFocus = legalCoords[legalCoords.indexOf(currentCoordFocus) - 1];
+            }
+        } else {
+            if (currentCoordFocus === lastCoord) {
+                currentCoordFocus = undefined;
+            } else {
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+
+                currentCoordFocus = legalCoords[legalCoords.indexOf(currentCoordFocus) + 1];
+            }
+        }
+
+        clearAllHighlights();
+        if (currentCoordFocus !== undefined) {
+            highlightCoord(currentCoordFocus);
+        }
+    } else if (event.key === "Enter") {
+        openTileSelectionModal(coordToRowAndCol(currentCoordFocus));
+    } else if (["w", "a", "s", "d"].includes(event.key)) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+
+        var rowAndCol = coordToRowAndCol(currentCoordFocus);
+        if (event.key === "w") {
+            rowAndCol.row -= 1;
+            rowAndCol.col += 1;
+        } else if (event.key === "a") {
+            rowAndCol.col -= 2;
+        } else if (event.key === "s") {
+            rowAndCol.row += 1;
+            rowAndCol.col -= 1;
+        } else if (event.key === "d") {
+            rowAndCol.col += 2;
+        }
+
+        var newCoord = rowAndColToCoord(rowAndCol);
+        if (legalCoords.includes(newCoord)) {
+            currentCoordFocus = newCoord;
+            clearAllHighlights();
+            highlightCoord(currentCoordFocus);
+        }
+    }
+}));
+
+$("#placed-tiles-board").blur(function() {
+    currentCoordFocus = undefined;
+});
+
+$("#game-board-controls")
+    .attr("width", $("#placed-tiles-board").get(0).clientWidth)
+    .css("text-align", "center");
+
+repositionCanvases();

@@ -1,0 +1,41 @@
+<html>
+    <head>
+        <title>18xx Route Calculator</title>
+
+        <link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}">
+
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/open-iconic/1.1.1/font/css/open-iconic-bootstrap.css" rel="stylesheet">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/routes18xxweb.css') }}">
+
+        <script src="https://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"></script>
+        <script src="{{ url_for('static', filename='js/point-in-polygon.js') }}"></script>
+
+        {% block imports %}{% endblock %}
+
+        {% block head %}
+        <style>{% block css %}{% endblock %}</style>
+        <script type="text/javascript">
+            $(document).ready(function() {
+                $.ajaxSetup({
+                    beforeSend: function(xhr, settings) {
+                        if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type)) {
+                            xhr.setRequestHeader("X-CSRFToken", "{{ csrf_token() }}");
+                        }
+                    }
+                });
+
+                {% block js %}{% endblock %}
+
+                $('[data-toggle="tooltip"]').tooltip();
+            });
+        </script>
+        {% endblock %}
+    </head>
+    <body>
+        {% block body %}{% endblock %}
+    </body>
+</html>

@@ -1,0 +1,8 @@
+routes-18xx == 0.4
+
+Flask == 1.1.2
+Flask-WTF==0.14.3
+Flask-Mail == 0.9.1
+
+redis == 2.10.6
+rq == 0.12
