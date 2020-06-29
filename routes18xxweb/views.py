@@ -6,8 +6,8 @@ from flask import Blueprint, g, jsonify, render_template, request, url_for
 from flask_mail import Message
 from rq import Queue
 
-from routes1846 import board, boardstate, boardtile, find_best_routes, private_companies, railroads, tiles, LOG as LIB_LOG
-from routes1846.cell import _CELL_DB, CHICAGO_CELL, Cell, board_cells
+from routes18xx import board, boardstate, boardtile, find_best_routes, game, private_companies, railroads, tiles, LOG as LIB_LOG
+from routes18xx.cell import _CELL_DB, Cell, board_cells
 
 from routes18xxweb.routes18xxweb import app, get_data_file, mail
 from routes18xxweb.calculator import redis_conn
@@ -21,6 +21,8 @@ set_log_format(LOG)
 
 init_logger(LIB_LOG, "LIB_LOG_LEVEL", 0)
 set_log_format(LIB_LOG)
+
+CHICAGO_CELL = Cell.from_coord("D6")
 
 CALCULATOR_QUEUE = Queue(connection=redis_conn)
 
@@ -167,7 +169,7 @@ def calculate():
 
     railroads_state_rows += [[name, "removed"] for name in removed_railroads]
 
-    job = CALCULATOR_QUEUE.enqueue(calculate_worker, railroads_state_rows, private_companies_rows, board_state_rows, railroad_name, timeout="5m")
+    job = CALCULATOR_QUEUE.enqueue(calculate_worker, g.game_name, railroads_state_rows, private_companies_rows, board_state_rows, railroad_name, timeout="5m")
 
     return jsonify({"jobId": job.id})
 
@@ -204,7 +206,7 @@ def _get_calculate_result(job_id):
                     str(route.train),
                     [str(space.cell) for space in route],
                     route.value,
-                    [(city.name, route.city_values[city]) for city in route.visited_cities]
+                    [(stop.name, route.stop_values[stop]) for stop in route.visited_stops]
                 ])
         else:
             # The job is in progress
@@ -220,17 +222,20 @@ def cancel_calculate_request():
         job.delete()
     return jsonify({})
 
-def calculate_worker(railroads_state_rows, private_companies_rows, board_state_rows, railroad_name):
-    board_state = boardstate.load([dict(zip(boardstate.FIELDNAMES, row)) for row in board_state_rows if any(val for val in row)])
-    railroad_dict = railroads.load(board_state, [dict(zip(railroads.FIELDNAMES, row)) for row in railroads_state_rows if any(val for val in row)])
-    private_companies.load(board_state, railroad_dict, [dict(zip(private_companies.FIELDNAMES, row)) for row in private_companies_rows if any(val for val in row)])
+def calculate_worker(game_name, railroads_state_rows, private_companies_rows, board_state_rows, railroad_name):
+    game = game.Game.load(game_name)
+    board_state = boardstate.load(game, [dict(zip(boardstate.FIELDNAMES, row)) for row in board_state_rows if any(val for val in row)])
+    railroad_dict = railroads.load(game, board_state, [dict(zip(railroads.FIELDNAMES, row)) for row in railroads_state_rows if any(val for val in row)])
+    game.capture_phase(railroad_dict)
+
+    private_companies.load(game, board_state, railroad_dict, [dict(zip(private_companies.FIELDNAMES, row)) for row in private_companies_rows if any(val for val in row)])
     board_state.validate()
 
     if railroad_name not in railroad_dict:
         valid_railroads = ", ".join(railroad_dict.keys())
         raise ValueError(f"Railroad chosen: \"{railroad_name}\". Valid railroads: {valid_railroads}")
 
-    return find_best_routes(board_state, railroad_dict, railroad_dict[railroad_name])
+    return find_best_routes(game, board_state, railroad_dict, railroad_dict[railroad_name])
 
 def _get_space(coord):
     for tile in _BOARD_TILES:
