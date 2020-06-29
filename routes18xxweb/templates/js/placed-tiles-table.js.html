@@ -1,0 +1,88 @@
+var tilesTable = [];
+
+function getTileAtCoord(coord) {
+    var rowNum = findRowByCoord(coord);
+    return rowNum === null ? null : tilesTable[rowNum];
+}
+
+function getTilesAsTable() {
+    return tilesTable.slice();
+}
+
+function getTilesHeaders() {
+    return {{ placed_tiles_colnames | tojson | safe  }};
+}
+
+function updateLocalStoragePlacedTiles() {
+    if (typeof(Storage) !== "undefined") {
+        localStorage.placedTilesTable = JSON.stringify(getTilesAsTable().filter(row => !row.every(isEmpty)).map(row => row.map(value => value.toString())));
+    }
+}
+
+function loadFromLocalStoragePlacedTiles() {
+    if (typeof(Storage) !== "undefined") {
+        if (localStorage.placedTilesTable !== undefined) {
+            return importTiles(prepareTilesForExport(JSON.parse(localStorage.placedTilesTable)));
+        }
+    }
+    return Promise.resolve();
+}
+
+function findNextEmptyRow() {
+    for (row = 0; row < tilesTable.length; row++) {
+        if (tilesTable[row].every(cell => isEmpty(cell))) {
+            return row;
+        }
+    }
+    return null;
+}
+
+function findRowByCoord(coord) {
+    for (row = 0; row < tilesTable.length; row++) {
+        if (tilesTable[row][0] === coord) {
+            return row;
+        }
+    }
+    return null;
+}
+
+function placeTile(coord, tileId, orientation) {
+    tileId = tileId.toString();
+    orientation = orientation.toString();
+
+    if (tilesTable.some(row => row[0] === coord && row[1] === tileId && row[2] === orientation)) {
+        return;
+    }
+
+    var row = findRowByCoord(coord);
+    if (row === null) {
+        row = findNextEmptyRow();
+    }
+    if (row === null) {
+        tilesTable.push([coord, tileId, orientation]);
+    } else {
+        tilesTable[row] = [coord, tileId, orientation];
+    }
+
+    updateLocalStoragePlacedTiles();
+}
+
+function removeTile(coord) {
+    var row;
+    while ((row = findRowByCoord(coord)) !== null) {
+        tilesTable.splice(row, 1);
+    }
+
+    updateLocalStoragePlacedTiles();
+}
+
+function getTileInfo(coord, chicagoNeighbor, callback) {
+    var tile = tilesTable.find(row => row[0] === coord);
+    var tileId = isEmpty(tile) ? null : tile[1];
+    $.get("{{ url_for('board_tile_info') }}", {coord: coord, chicagoNeighbor: chicagoNeighbor, tileId: tileId})
+        .done(function(response) {
+            var info = response["info"];
+            info["orientation"] = isEmpty(tile) ? null : tile[2];
+            callback(info);
+        });
+}

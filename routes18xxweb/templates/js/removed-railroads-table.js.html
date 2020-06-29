@@ -1,0 +1,144 @@
+function getRemovedRailroads() {
+    return $("#removed-railroads button[data-railroad]").map((index, element) => $(element).attr("data-railroad")).toArray();
+}
+
+function getRemovedRailroadsAsTable() {
+    var removedRailroadsTableData = [];
+    $("#removed-railroads button[data-railroad]").each((index, element) => {
+        return removedRailroadsTableData.push([
+            $(element).attr("data-railroad"),
+            $(element).attr("data-home")
+        ]);
+    });
+    return removedRailroadsTableData;
+}
+
+function deleteRemovedRailroad(railroad) {
+    $(`#removed-railroads button[data-railroad='${railroad}']`).remove();
+
+    drawTokens();
+
+    updateLocalStorageRemovedRailroads();
+}
+
+function addRemovedRailroad(railroadName, homeCity) {
+    $("#removed-railroads")
+        .append($("<button></button>")
+            .addClass("btn btn-sm btn-outline-info")
+            .attr("type", "button")
+            .attr("data-railroad", railroadName)
+            .attr("data-home", homeCity)
+            .css("margin-right", 5)
+            .append($("<span></span>")
+                .addClass("oi oi-circle-x align-text-top")
+                .css("margin-right", 5))
+            .append($("<span></span>").text(railroadName))
+            .click(function() {
+                deleteRemovedRailroad($(this).attr("data-railroad"));
+            }));
+
+    if ($("#removed-railroads").attr("data-disabled") === "true") {
+        $("#removed-railroads button").prop("disabled", true);
+    }
+}
+
+function updateLocalStorageRemovedRailroads() {
+    if (typeof(Storage) !== "undefined") {
+        localStorage.removedRailroadsTable = JSON.stringify(getRemovedRailroads());
+    }
+}
+
+function loadFromLocalStorageRemovedRailroads() {
+    if (typeof(Storage) !== "undefined") {
+        if (localStorage.removedRailroadsTable !== undefined) {
+            return importRemovedRailroads(prepareRemovedRailroadsForExport(JSON.parse(localStorage.removedRailroadsTable)));
+        }
+    }
+    return Promise.resolve();
+}
+
+function importRemovedRailroads(importText) {
+    var importRows = importText.trim().split("\n");
+    var removedRailroadRows = importRows
+        .map(row => row.split(";"))
+        // Since the railroads and removed railroads shared a text area, filter out the railroads
+        .filter(row => row.length >= 2 && !isEmpty(row[1]) && row[1].trim().toLowerCase() === "removed")
+        .map(row => row[0]);
+
+    return $.get("{{ url_for('removable_railroads') }}")
+        .then(railroadsResponse => {
+            var legalRailroads = railroadsResponse["railroads"];
+            return [
+                removedRailroadRows.filter(railroadName =>
+                        legalRailroads.includes(railroadName) && !getRailroads().includes(railroadName)),
+                railroadsResponse["home-cities"]
+            ];
+        }).then(data => {
+            var railroadNames = data[0];
+            var homeCities = data[1];
+            railroadNames.forEach(railroadName => {
+                var railroadButton = $(`#removed-railroads button[data-railroad='${railroadName}']`);
+                if (railroadButton.length === 0) {
+                    addRemovedRailroad(railroadName, homeCities[railroadName]);
+                }
+            });
+
+            // Delete railroads which are in the table but not the import block
+            getRemovedRailroads()
+                .filter(railroad => !railroadNames.includes(railroad))
+                .forEach(railroad => {
+                    $(`#removed-railroads button[data-railroad='${railroad}']`).remove()
+                });
+
+            drawTokens();
+
+            updateLocalStorageRemovedRailroads();
+        });
+}
+
+function prepareRemovedRailroadsForExport(removedRailroadNames) {
+    return (removedRailroadNames === undefined ? getRemovedRailroads() : removedRailroadNames)
+        .map(removedRailroad => `${removedRailroad}; removed`)
+        .join("\n");
+}
+
+function populateRemoveRailroadsDropdown(source) {
+    $("#remove-railroad-dropdown-list").empty();
+
+    $.get("{{ url_for('removable_railroads') }}", {railroads: JSON.stringify(getRemovedRailroads())})
+        .done(function(result) {
+            var activeRailroads = getRailroads();
+            result["railroads"]
+                .filter(railroad => !activeRailroads.includes(railroad))
+                .forEach(railroad => {
+                $("#remove-railroad-dropdown-list")
+                    .append($("<a></a>")
+                        .addClass("dropdown-item")
+                        .attr("data-railroad", railroad)
+                        .attr("href", "#")
+                        .text(railroad)
+                        .click(function() {
+                            var railroad = $(this).attr("data-railroad");
+                            var homeCity = result["home-cities"][railroad];
+                            addRemovedRailroad(railroad, homeCity);
+
+                            drawTokens();
+
+                            updateLocalStorageRemovedRailroads();
+                        })
+                    );
+            });
+        });
+}
+
+function toggleEnableRemovedRailroads(enable) {
+    $("#removed-railroads").attr("data-disabled", enable ? "false" : "true");
+    $("#removed-railroads button").prop("disabled", !enable);
+    $("#remove-railroad-dropdown button").prop("disabled", !enable);
+}
+
+$("#remove-railroad-dropdown").on("show.bs.dropdown", function() {
+    populateRemoveRailroadsDropdown(this);
+});
+
+// loadFromLocalStorageRemovedRailroads();

@@ -1,0 +1,17 @@
+import os
+
+#Global
+SECRET_KEY = "d055d10f-0770-437d-8f5f-96d345146841"
+TEMPLATES_AUTO_RELOAD = True
+EXPLAIN_TEMPLATE_LOADING = False
+
+# WTForms
+WTF_CSRF_ENABLED = True
+
+# Flask-Mail
+MAIL_SERVER = "smtp.gmail.com"
+MAIL_PORT = 465
+MAIL_USE_TLS = False
+MAIL_USE_SSL = True
+MAIL_USERNAME = os.environ['EMAIL_USER']
+MAIL_PASSWORD = os.environ['EMAIL_PASSWORD']

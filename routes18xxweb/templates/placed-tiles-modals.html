@@ -1,0 +1,62 @@
+<div class="modal fade" id="tile-selector" tabindex="-1" role="dialog" aria-labelledby="tileSelectorLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content" style="height: 90%">
+            <div class="modal-header">
+                <h5 class="modal-title" id="tileSelectorLabel"></h5>
+                <button id="delete-tile-button" type="button" class="btn btn-danger" style="margin-left: 10px;" data-dismiss="modal" aria-label="delete">Delete</button>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding-top: 0px; padding-bottom: 0px;">
+                <ul class="nav nav-pills" id="tile-selector-modal-body-tabs" role="tablist" style="padding-bottom: 10px;">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="tile-selector-tiles" data-toggle="tab" href="#tile-selector-tiles-content" role="tab" aria-controls="tile-selector-tiles" aria-selected="true">Tiles</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="tile-selector-stations" data-toggle="tab" href="#tile-selector-stations-content" role="tab" aria-controls="tile-selector-stations" aria-selected="false">Stations</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="tile-selector-private-companies" data-toggle="tab" href="#tile-selector-private-companies-content" role="tab" aria-controls="tile-selector-private-companies" aria-selected="false">PCs</a>
+                    </li>
+                </ul>
+                <div class="tab-content" id="tile-selector-modal-body-tabs-content" style="height:67%;">
+                    <div class="tab-pane fade show active" id="tile-selector-tiles-content" style="height: 100%; overflow-y: auto;" role="tabpanel" aria-labelledby="tile-selector-tiles">
+                        <div style="float: left;">
+                            <div id="tile-options"></div>
+                        </div>
+                        <div style="float: left; margin-left: 50px;">
+                            <div id="tile-orientations"></div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="tile-selector-stations-content" role="tabpanel" aria-labelledby="tile-selector-stations">
+                        <div id="tile-stations"></div>
+                        <div id="add-tile-stations"></div>
+                    </div>
+                    <div class="tab-pane fade" id="tile-selector-private-companies-content" role="tabpanel" aria-labelledby="tile-selector-private-companies">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="mr-auto">
+                    <button class="btn btn-outline-danger" data-toggle="modal" data-target="#tile-report-issue-modal">Report Issue</button>
+                </div>
+                <button type="button" class="btn btn-link" data-dismiss="modal" aria-label="Close">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="confirm-clear-map-modal" tabindex="-1" role="dialog" aria-labelledby="confirmClearMapModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+            <div class="modal-body" id="confirm-clear-map-modal-body">
+                Please confirm you wish to clear the map.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-success btn-sm" data-dismiss="modal" aria-label="Close">No</button>
+                <button class="btn btn-danger btn-sm" id="confirm-clear-map-modal-confirm" data-dismiss="modal">Yes, clear the map</button>
+            </div>
+        </div>
+    </div>
+</div>

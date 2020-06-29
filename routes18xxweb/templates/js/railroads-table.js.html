@@ -1,0 +1,737 @@
+var chicago = "D6";
+
+function getRailroads() {
+    return $("#railroads-table tr[data-railroad]").map((index, element) => $(element).attr("data-railroad")).toArray();
+}
+
+function getRailroadHeaders() {
+    return $("#railroads-table th").map((index, header) => $(header).text().toLowerCase()).toArray();
+}
+
+function getRailroadsAsTable() {
+    var railroadsTableData = [];
+    $("#railroads-table tr[data-railroad]").each((index, element) => {
+        return railroadsTableData.push([
+            $(element).attr("data-railroad"),
+            $(element).attr("data-trains"),
+            $(element).attr("data-stations"),
+            $(element).attr("data-neighbor")
+        ]);
+    });
+    return railroadsTableData;
+}
+
+function getRailroadRow(railroadName) {
+    return $(`#railroads-table tr[data-railroad='${railroadName}']`);
+}
+
+function setRailroadHomeCity(railroadRow, homeCity) {
+    railroadRow.attr("data-home", homeCity);
+}
+
+function addRailroadStation(railroadRow, newStation, newNeighbor) {
+    getRailroadsAsTable().forEach(railroad => {
+        if (railroad[0] !== railroadRow.attr("data-railroad")) {
+            return;
+        }
+
+        var stations = [...new Set(railroad[2].split(",").map(coord => coord.trim()).concat(newStation))];
+        var neighbor = !isEmpty(newNeighbor) && newStation == chicago ? newNeighbor : railroad[3];
+        setRailroadStations(railroadRow, stations, neighbor);
+    });
+}
+
+function removeRailroadStation(railroadRow, station) {
+    getRailroadsAsTable().forEach(railroad => {
+        if (railroad[0] !== railroadRow.attr("data-railroad")) {
+            return;
+        }
+
+        var stations = railroad[2].split(",").filter(coord => coord !== station);
+        var neighbor = station === chicago ? null : railroadRow.attr("data-neighbor");
+        setRailroadStations(railroadRow, stations, neighbor);
+    });
+}
+
+function setRailroadStations(railroadRow, stations, neighbor) {
+    var stationsDisplay = railroadRow.find("td:nth-child(3) .stations");
+    stationsDisplay.empty();
+
+    if (!stations.length) {
+        // No stations, so reset and bail
+        stationsDisplay.removeAttr("data-stations");
+        railroadRow.removeAttr("data-stations");
+        stationsDisplay.removeAttr("data-neighbor");
+        railroadRow.removeAttr("data-neighbor");
+        return;
+    }
+
+    // Ensure the railroad's home station is always set
+    var homeStation = railroadRow.attr("data-home");
+    if (!isEmpty(homeStation) && !stations.includes(homeStation)) {
+        stations.push(homeStation);
+    }
+
+    // Ensure that if they own any independent railroads, they're always included.
+    var independentRailroads = getIndependentRailroadsAsTable()
+        .filter(railroad => railroad[1] === railroadRow.attr("data-railroad"))
+        .map(railroad => railroad[2]);
+    stations = [...new Set(stations.concat(independentRailroads))];
+
+    var stationsHtml = stations.map(cell => {
+        var displayNeighbor = (cell === chicago && neighbor ? ` [${neighbor}]` : "");
+        var displayStation = cityNames[cell] + displayNeighbor + ` (${cell}) `;
+        return $("<div></div>").text(displayStation).css("line-height", "1.5em");
+    });
+
+    stationsDisplay
+        .attr("data-stations", stations.join(","))
+        .html(stationsHtml);
+    railroadRow.attr("data-stations", stationsDisplay.attr("data-stations"));
+
+    if (neighbor) {
+        stationsDisplay.attr("data-neighbor", neighbor)
+        railroadRow.attr("data-neighbor", stationsDisplay.attr("data-neighbor"));
+    } else {
+        stationsDisplay.removeAttr("data-neighbor");
+        railroadRow.removeAttr("data-neighbor");
+    }
+}
+
+function setRailroadTrains(railroadRow, trains) {
+    var trainsDisplay = railroadRow.find("td:nth-child(2) .trains");
+    trainsDisplay.empty();
+
+    if (!trains.length) {
+        // No trains, so reset and bail
+        trainsDisplay.removeAttr("data-trains");
+        railroadRow.removeAttr("data-trains");
+        return;
+    }
+
+    trainsDisplay
+        .attr("data-trains", trains.join(","))
+        .html(trains.join("<br />"));
+    railroadRow.attr("data-trains", trainsDisplay.attr("data-trains"));
+}
+
+function getPhase() {
+    var allTrains = new Array().concat(...getRailroadsAsTable().map(railroad => {
+        return isEmpty(railroad[1]) ? [] : railroad[1].split(",").map(value => value.trim());
+    }));
+    return $.get("{{ url_for('board_phase') }}", {trains: JSON.stringify(Array.from(new Set(allTrains)))})
+        .then(result => {
+            return result["phase"];
+        });
+}
+
+function updatePhase() {
+    getPhase()
+        .done(phase => {
+            $("#board-phase").text(phase);
+        });
+}
+
+function setRailroadName(railroadRow, railroad) {
+    var nameCell = $(railroadRow).children("td:nth-child(1)");
+    var nameDisplay = nameCell.children(".railroad");
+
+    nameCell.children("div.dropdown").remove();
+    nameDisplay.empty();
+    nameDisplay.text(railroad);
+    railroadRow.attr("data-railroad", railroad);
+}
+
+function updateLocalStorageRailroads() {
+    if (typeof(Storage) !== "undefined") {
+        localStorage.railroadsTable = JSON.stringify(getRailroadsAsTable());
+    }
+}
+
+function loadFromLocalStorageRailroads() {
+    if (typeof(Storage) !== "undefined") {
+        if (localStorage.railroadsTable !== undefined) {
+            return importRailroads(prepareRailroadsForExport(JSON.parse(localStorage.railroadsTable)));
+        }
+    }
+    return Promise.resolve();
+}
+
+function importRailroads(importText) {
+    var importRows = importText.trim().split("\n");
+    var tableData = importRows
+        .map(row => {
+            return row.split(";", 4)
+                .map(cell => cell.trim().split(",")
+                    .map(value => value.trim())
+                    .filter(value => !isEmpty(value)));
+        })
+        // Since the railroads and removed railroads shared a text area, filter out the removed railroads
+        .filter(row => row.length < 2 || isEmpty(row[1][0]) || row[1][0].trim().toLowerCase() !== "removed");
+
+    return $.when(
+        $.get("{{ url_for('legal_railroads') }}"),
+        $.get("{{ url_for('trains') }}"),
+        $.get("{{ url_for('cities') }}"),
+        $.get("{{ url_for('chicago_stations') }}")
+    ).then((railroadsResponse, trainsResponse, citiesResponse, chicagoNeighborsResponse) => {
+        var homeCities = railroadsResponse[0]["home-cities"];
+        var legalRailroads = railroadsResponse[0]["railroads"];
+        var legalTrains = trainsResponse[0]["trains"].map(train => train.split("/").map(val => val.trim()).join(" / "));
+        var legalStations = citiesResponse[0]["cities"];
+        var legalChicagoNeighbors = chicagoNeighborsResponse[0]["chicago-stations"];
+
+        var chicagoNeighbors = [];
+        var importTableData = [];
+        tableData.forEach(rowData => {
+            // Ensure rowData always consists of 4 values
+            rowData = rowData.concat(new Array(4 - rowData.length).fill([]));
+
+            // normalize train values
+            rowData[1] = rowData[1].map(train => train.split("/").map(val => val.trim()).join(" / "));
+            // remove duplicates
+            rowData[2] = [...new Set(rowData[2].concat(homeCities[rowData[0]]))];
+            // Add home city data
+            rowData.push(homeCities[rowData[0]]);
+
+            if (legalRailroads.includes(rowData[0][0])
+                    && rowData[1].every(train => legalTrains.includes(train))
+                    && rowData[2].every(station => legalStations.includes(station))
+                    && ((!rowData[2].includes(chicago) && isEmpty(rowData[3][0]))
+                        || (rowData[2].includes(chicago) && legalChicagoNeighbors.includes(rowData[3][0])))
+                    && legalStations.includes(rowData[4])) {
+                if (rowData[1].length <= 4 && (isEmpty(rowData[3]) || !chicagoNeighbors.includes(rowData[3]))) {
+                    if (!isEmpty(rowData[3])) {
+                        chicagoNeighbors.push(rowData[3]);
+                    }
+                    importTableData.push(rowData);
+                }
+            }
+        });
+
+        return importTableData;
+    }).then(importTableData => {
+        importTableData.forEach(rowData => {
+            var railroadName = rowData[0][0];
+            var tableRow = $(`#railroads-table tr[data-railroad='${railroadName}']`);
+            if (tableRow.length === 0) {
+                tableRow = $("#railroads-table tr").last();
+
+                // If no railroad by this name is selected, it's a new row whose name must be set. Otherwise, the name is already set.
+                setRailroadName(tableRow, railroadName);
+
+                addTrainAndStationButtons(tableRow);
+                newRow();
+            }
+
+            setRailroadTrains(tableRow, rowData[1]);
+            setRailroadStations(tableRow, rowData[2], rowData[3][0]);
+            setRailroadHomeCity(tableRow, rowData[4]);
+        });
+
+        // Delete railroads which are in the table but not the import block
+        getRailroads()
+            .filter(railroad => !importTableData.map(row => row[0][0]).includes(railroad))
+            .forEach(railroad => {
+                $(`#railroads-table tr[data-railroad='${railroad}']`).remove()
+            });
+
+        removeAllPrivateCompanies(company => !getRailroads().includes(company[1]))
+        drawTokens();
+
+        $("#calculate-submit").prop("disabled", !readyToSelectRailroad());
+
+        updatePhase();
+    });
+}
+
+function prepareRailroadsForExport(railroadsTable) {
+    railroadsTable = railroadsTable === undefined ? getRailroadsAsTable() : railroadsTable;
+    return railroadsTable.map(row => row.map(cell => isEmpty(cell) ? "" : cell.split(",").join(", ")).join("; ")).join("\n");
+}
+
+function headers() {
+    $("#railroads-table")
+        .append($("<tr></tr>")
+            .css("font-size", "125%")
+            .append($("<th></th>")
+                .css("width", "30%")
+                .text("Name"))
+            .append($("<th></th>")
+                .css("width", "20%")
+                .text("Trains"))
+            .append($("<th></th>")
+                .css("width", "35%")
+                .text("Stations")));
+}
+
+function newRow() {
+    $("#railroads-table")
+        .append($("<tr></tr>")
+            .append($("<td></td>")
+                .css("width", "30%")
+                .append($("<div></div>")
+                    .addClass("railroad"))
+                .append($("<div></div>")
+                    .addClass("dropdown")
+                    .attr("id", "add-railroad-dropdown")
+                    .append($("<button></button>")
+                        .addClass("btn btn-outline-primary dropdown-toggle")
+                        .attr("type", "button")
+                        .attr("data-toggle", "dropdown")
+                        .attr("aria-haspopup", "true")
+                        .attr("aria-expanded", "false")
+                        .append($("<span></span>")
+                            .addClass("oi oi-plus")))
+                    .append($("<div></div>")
+                        .attr("id", "add-railroad-dropdown-list")
+                        .addClass("dropdown-menu")))));
+
+    if ($("#railroads-table").attr("data-disabled") === "true") {
+        $("#railroads-table button").prop("disabled", true);
+    }
+
+    $("#add-railroad-dropdown").on("show.bs.dropdown", function() {
+        populateRailroadsDropdown(this);
+    });
+}
+
+function addTrainAndStationButtons(rowElement) {
+    rowElement
+        .css("border-bottom", "1px solid black")
+        .append($("<td></td>")
+            .css("width", "20%")
+            .append($("<div></div>")
+                .addClass("trains")
+                .attr("data-railroad", $(rowElement).attr("data-railroad"))
+                .css("float", "left"))
+            .append($("<div></div>")
+                .html("&nbsp;")
+                .css("width", 10)
+                .css("float", "left"))
+            .append($("<button></button>")
+                .addClass("btn btn-sm btn-outline-primary")
+                .attr("data-toggle", "modal")
+                .attr("data-target", "#trains-modal")
+                .append($("<span></span>")
+                    .addClass("oi oi-pencil"))))
+        .append($("<td></td>")
+            .css("width", "35%")
+            .append($("<div></div>")
+                .addClass("stations")
+                .attr("data-railroad", $(rowElement).attr("data-railroad"))
+                .css("float", "left"))
+            .append($("<div></div>")
+                .html("&nbsp;")
+                .css("width", 10)
+                .css("float", "left"))
+            .append($("<button></button>")
+                .addClass("btn btn-sm btn-outline-primary")
+                .attr("data-toggle", "modal")
+                .attr("data-target", "#stations-modal")
+                .append($("<span></span>")
+                    .addClass("oi oi-pencil"))))
+        .append($("<button></button>")
+            .addClass("btn btn-outline-danger")
+            .css("margin-left", 30)
+            .attr("type", "button")
+            .append($("<span></span>")
+                .addClass("oi oi-delete"))
+                .click(function() {
+                    $(this).parents("tr").remove();
+                    drawTokens();
+
+                    $("#calculate-submit").prop("disabled", !readyToSelectRailroad());
+                    removeAllPrivateCompanies(company => company[1] === $(this).parents("tr").attr("data-railroad"));
+                    updateLocalStorageRailroads();
+                    updatePhase();
+                }));
+
+    if ($("#railroads-table").attr("data-disabled") === "true") {
+        $("#railroads-table button").prop("disabled", true);
+    }
+}
+
+function enableSubmitViaKeyboard(modal, submitButton) {
+    $(modal).keydown(function(event) {
+        if (event.key === "Enter" && event.ctrlKey) {
+            event.stopImmediatePropagation();
+            event.preventDefault();
+            $(submitButton).click();
+        }
+    });
+}
+
+function chiacgoPopoverListGroup(railroadName, cityItem) {
+    var popoverListGroup = $("<div></div>")
+        .addClass("list-group")
+        .attr("id", "chicago-neighbor-options")
+        .attr("tabindex", "-1");
+
+    var currentChicagoNeighbors = $(`#railroads-table tr[data-neighbor][data-railroad!='${railroadName}']`)
+        .map((index, row) => $(row).attr("data-neighbor"))
+        .toArray();
+
+    $.get("{{ url_for('chicago_stations') }}", {stations: JSON.stringify(currentChicagoNeighbors)})
+        .done(function(result) {
+            result["chicago-stations"].forEach((neighbor, index) => {
+                popoverListGroup
+                    .append($("<button></button>")
+                        .addClass("btn btn-sm btn-outline-primary")
+                        .attr("type", "button")
+                        .attr("data-neighbor", neighbor)
+                        .attr("tabindex", "-1")
+                        .text(neighbor)
+                        .click(function() {
+                            if ($(this).hasClass("active")) {
+                                cityItem.removeAttr("data-neighbor");
+                                cityItem.removeClass("active");
+                                popoverListGroup.children(".active").removeClass("active");
+                            } else {
+                                cityItem.attr("data-neighbor", neighbor);
+                                cityItem.addClass("active");
+                                popoverListGroup.children(".active").removeClass("active");
+                                $(this).addClass("active");
+                            }
+                        })
+                        .keydown(function(event) {
+                            if (event.key === "Tab") {
+                                event.stopImmediatePropagation();
+                                event.preventDefault();
+
+                                if (event.shiftKey) {
+                                    if (index === 0) {
+                                        cityItem.prev().focus();
+                                    } else {
+                                        $(this).prev().focus();
+                                    }
+                                } else {
+                                    if (index === result["chicago-stations"].length - 1) {
+                                        cityItem.next().focus();
+                                    } else {
+                                        $(this).next().focus();
+                                    }
+                                }
+                            }
+                        }));
+            });
+        });
+
+    return popoverListGroup;
+}
+
+function populateStationsModal(source) {
+    $("#stations-modal-list").empty();
+
+    var railroad = $("#stations-modal").attr("data-railroad");
+    var stationsDisplay = $(`#railroads-table tr[data-railroad='${railroad}'] td:nth-child(3) .stations`);
+    var currentStationsAttr = stationsDisplay.attr("data-stations");
+    var currentStations = currentStationsAttr !== undefined ? currentStationsAttr.split(",") : new Array();
+    var currentNeighbor = stationsDisplay.attr("data-neighbor");
+
+    $.get("{{ url_for('cities') }}")
+        .done(function(result) {
+            result["cities"].forEach(cell => {
+                var cityItemText = (cityNames.hasOwnProperty(cell) ? cityNames[cell] : cell) + ` (${cell})`;
+                var cityItem = $("<button></button>")
+                    .addClass("list-group-item list-group-item-action")
+                    .attr("type", "button")
+                    .attr("data-cell", cell)
+                    .text(cityItemText);
+
+                if (cell === chicago) {
+                    var neighborPopoverListGroup = chiacgoPopoverListGroup(railroad, cityItem);
+                    var neighborPopover = cityItem.popover({
+                        placement: "right",
+                        html: true,
+                        title: "station neighbor",
+                        content: neighborPopoverListGroup,
+                        container: $("#stations-modal")
+                    });
+
+                    // When the popover is hidden, clear its effects.
+                    $(neighborPopover).on("hide.bs.popover", function() {
+                        $(neighborPopoverListGroup).find(".active").removeClass("active");
+                        cityItem.removeAttr("data-neighbor");
+                    });
+
+                    function updatePopover(event) {
+                        $(neighborPopover).popover('update');
+                        if (currentNeighbor) {
+                            $(neighborPopoverListGroup).find(`[data-neighbor=${currentNeighbor}]`).not(".active").click();
+                        }
+                    }
+
+                    // If the current neighbor has been set, load the popover with it selected.
+                    $(neighborPopover).on("shown.bs.popover", updatePopover);
+
+                    // Detects the end of the modal's transition and repositions the neighbor popover. Without this, the
+                    // popover may appear a bit above the city item due to its creation during the modal's transition.
+                    $("#stations-modal").on("webkitTransitionEnd otransitionend oTransitionEnd msTransitionEnd transitionend", function(event) {
+                        // jQuery bubbles events on children of the bound element up to the parent. And for some reason,
+                        // .off() and .stopImmediatePropogation() aren't doing anything. I only want to update the popover
+                        // when the modal itself is done transitioning, so this is workaround.
+                        if ($(event.target).hasClass("modal") || $(event.target).hasClass("modal-dialog")) {
+                            updatePopover(event);
+                        }
+                    });
+
+                    // If the popover is not destroyed, then it becomes detatched from the modal when hidden, and
+                    // reappears elsewhere on the page when the modal is next opened. It also creates a second copy when
+                    // the modal is opened, leading to undefined behavior.
+                    $("#stations-modal").on("hide.bs.modal", function() {
+                        $(neighborPopover).popover('dispose');
+                    });
+
+                    cityItem.click(function() {
+                        if ($(this).hasClass("active")) {
+                            $(neighborPopover).popover("hide");
+                            $(this).removeClass("active");
+                        }
+                    });
+
+                    // Handle tabbing to the Chicago station popover in the expected order
+                    cityItem.keydown(event => {
+                        if (event.key === "Tab") {
+                            // If the popover isn't viisble, it makes no sense to focus on it (and indeed, it cannot
+                            // become focused). So kick out of this and let the normal TAB behavior occur.
+                            if (!$(neighborPopoverListGroup).is(":visible")) {
+                                return;
+                            }
+
+                            event.stopImmediatePropagation();
+                            event.preventDefault();
+
+                            if (event.shiftKey) {
+                                $(neighborPopoverListGroup).children().last().focus();
+                            } else {
+                                $(neighborPopoverListGroup).children().first().focus();
+                            }
+                        }
+                    });
+                } else {
+                    var independentRailroads = getIndependentRailroadsAsTable()
+                        .filter(company => company[1] === railroad)
+                        .map(railroad => railroad[2]);
+                    var uneditableStations = independentRailroads
+                        .concat([
+                            $(source).parents("tr").attr("data-home"),
+                            $(source).parents("tr").attr("data-big-4"),
+                            $(source).parents("tr").attr("data-michigan-southern")
+                        ])
+                        .filter(value => !isEmpty(value));
+
+                    if (!uneditableStations.includes(cell)) {
+                        cityItem.click(function() {
+                            if ($(this).hasClass("active")) {
+                                $(this).removeClass("active");
+                            } else {
+                                $(this).addClass("active");
+                            }
+
+                            if ($("#chicago-neighbor-options .active").length === 0) {
+                                $("#chicago-neighbor-options").parents(".popover").popover("hide");
+                            }
+                        });
+                    }
+                }
+
+                $("#stations-modal-list").append(cityItem);
+
+                if (currentStations.includes(cell)) {
+                    // Chicago is the only station which will also activate a popover.
+                    if (cell === chicago) {
+                        $(neighborPopover).popover("show");
+                    } else {
+                        cityItem.addClass("active");
+                    }
+                }
+            });
+        });
+
+    enableSubmitViaKeyboard($("#stations-modal"), $("#stations-modal-confirm"));
+}
+
+function populateTrainsModal(source) {
+    function activateTrainItem(element) {
+        $(element).addClass("active");
+
+        $(element).append($("<input></input>")
+            .attr("type", "number")
+            .attr("min", 1)
+            .attr("max", 4)
+            .attr("value", 1)
+            .css("width", "50px")
+            .css("height", "1.5em")
+            .addClass("form-control float-right")
+            .on('input', limitTrains));
+    }
+
+    $("#trains-modal-list").empty();
+
+    var railroad = $("#trains-modal").attr("data-railroad");
+    var trainsDisplay = $(`#railroads-table tr[data-railroad='${railroad}'] td:nth-child(2) .trains`);
+    var currentTrainsAttr = trainsDisplay.attr("data-trains");
+    var currentTrains = currentTrainsAttr !== undefined ? currentTrainsAttr.split(",") : new Array();
+    var trainCounts = {};
+    currentTrains.forEach(index => {trainCounts[index] = (trainCounts[index] || 0) + 1;});
+
+    $.get("{{ url_for('trains') }}")
+        .done(function(result) {
+            result["trains"].forEach(train => {
+                var trainItem = $("<button></button>")
+                    .addClass("list-group-item list-group-item-action")
+                    .attr("type", "button")
+                    .attr("data-train", train)
+                    .text(train)
+                    .click(function(event) {
+                        // The text field gerates a click event, but we don't care about it.
+                        if ($(event.target).is("input")) {
+                            event.stopImmediatePropagation();
+                            return;
+                        }
+
+                        if ($(this).hasClass("disabled")) {
+                            return;
+                        }
+
+                        if ($(this).hasClass("active")) {
+                            $(this).children("input").remove();
+                            $(this).removeClass("active");
+                        } else {
+                            activateTrainItem(this);
+                        }
+                        limitTrains();
+                    });
+                
+                if (currentTrains.includes(train)) {
+                    activateTrainItem(trainItem);
+                    $(trainItem).find("input[type='number']").val(trainCounts[train]);
+                }
+                
+                $("#trains-modal-list").append(trainItem);
+            });
+            limitTrains();
+        });
+    enableSubmitViaKeyboard($("#trains-modal"), $("#trains-modal-confirm"));
+}
+
+function limitTrains() {
+    var trainCount = $("#trains-modal-list input[type='number']")
+        .map((index, element) => parseInt($(element).val()))
+        .get()
+        .reduce((val1, val2) => val1 + val2, 0);
+
+    if (trainCount >= 4) {
+        $("#trains-modal-list .list-group-item:not(.active)").addClass("disabled");
+    } else {
+        $("#trains-modal-list .list-group-item.disabled").removeClass("disabled");
+    }
+
+    var newMaxTrains = 4 - trainCount;
+    $("#trains-modal-list input[type='number']").each((input, element) => {
+        $(element).attr("max", newMaxTrains + parseInt($(element).val()));
+    });
+}
+
+function populateRailroadsDropdown(source) {
+    $("#add-railroad-dropdown-list").empty();
+
+    $.get("{{ url_for('legal_railroads') }}", {railroads: JSON.stringify(getRailroads())})
+        .done(function(result) {
+            result["railroads"]
+                .filter(railroad => !getRemovedRailroads().includes(railroad))
+                .forEach(railroad => {
+                    $("#add-railroad-dropdown-list")
+                        .append($("<a></a>")
+                            .addClass("dropdown-item")
+                            .attr("data-railroad", railroad)
+                            .attr("href", "#")
+                            .text(railroad)
+                            .click(function() {
+                                var nameRow = $(source).parents("tr");
+
+                                setRailroadName(nameRow, $(this).attr("data-railroad"));
+
+                                addTrainAndStationButtons(nameRow);
+                                newRow();
+
+                                var homeCity = result["home-cities"][$(this).attr("data-railroad")];
+                                setRailroadStations(nameRow, [homeCity]);
+                                setRailroadHomeCity(nameRow, homeCity);
+
+                                drawTokens();
+
+                                $(nameRow).find(".trains ~ button").focus();
+
+                                updateLocalStorageRailroads();
+                            })
+                        );
+            });
+        });
+}
+
+function toggleEnableRailroads(enable) {
+    $("#railroads-table").attr("data-disabled", enable ? "false" : "true");
+    $("#railroads-table button").prop("disabled", !enable);
+}
+
+$("#trains-modal").on("show.bs.modal", function(event) {
+    $("#trains-modal").attr("data-railroad", $(event.relatedTarget).parents("tr:first").attr("data-railroad"));
+    populateTrainsModal(event.relatedTarget);
+});
+
+$("#trains-modal").on("hide.bs.modal", function(event) {
+    $("#trains-modal").removeAttr("data-railroad");
+});
+
+$("#trains-modal-confirm").click(function() {
+    var trains = new Array();
+    $("#trains-modal-list .active").each((index, element) => {
+        var count = parseInt($(element).find("input[type='number']").val());
+        trains = trains.concat(new Array(count).fill($(element).attr("data-train")));
+    }).get();
+
+    var railroad = $("#trains-modal").attr("data-railroad");
+    setRailroadTrains($(`#railroads-table tr[data-railroad='${railroad}']`), trains);
+
+    $("#trains-modal").modal("hide");
+
+    $("#calculate-submit").prop("disabled", !readyToSelectRailroad());
+
+    updateLocalStorageRailroads();
+    updatePhase();
+});
+
+$("#stations-modal").on("show.bs.modal", function(event) {
+    $("#stations-modal").attr("data-railroad", $(event.relatedTarget).parents("tr:first").attr("data-railroad"));
+    populateStationsModal(event.relatedTarget);
+});
+
+$("#stations-modal").on("hide.bs.modal", function(event) {
+    $("#stations-modal").removeAttr("data-railroad");
+});
+
+$("#stations-modal-confirm").click(function() {
+    var railroad = $("#stations-modal").attr("data-railroad");
+    var stations = $("#stations-modal-list .active").map((index, element) => $(element).attr("data-cell")).toArray();
+    var neighbor = $(`#stations-modal-list .active[data-cell='${chicago}']`).attr("data-neighbor");
+
+    setRailroadStations($(`#railroads-table tr[data-railroad='${railroad}']`), stations, neighbor);
+    drawTokens();
+
+    $("#stations-modal").modal("hide");
+
+    $("#calculate-submit").prop("disabled", !readyToSelectRailroad());
+
+    updateLocalStorageRailroads();
+});
+
+// I am unclear why this button propogates its transitionend event to its parent modal. But as it interferes with the
+// behavior of the station modal (specifically, the special handling of Chicago), the event must be slienced.
+$("#stations-modal-confirm").on("webkitTransitionEnd otransitionend oTransitionEnd msTransitionEnd transitionend", event => {
+    event.stopPropagation();
+});
+
+headers();
+newRow();
