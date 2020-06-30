@@ -515,7 +515,7 @@ function populatePrivateCompanies(coord) {
         
             var companyNames = ["Steamboat Company", "Meat Packing Company"];
             var tokenCoordPromises = Promise.all(companyNames.map(companyName => {
-                return $.get("{{ url_for('legal_token_coords') }}", {companyName: companyName})
+                return $.get("{{ url_for('.legal_token_coords') }}", {companyName: companyName})
             }));
         
             $.when(tokenCoordPromises)
@@ -645,7 +645,7 @@ function populateStations(coord) {
             }
 
             if (coord == chicago) {
-                $.get("{{ url_for('chicago_stations') }}")
+                $.get("{{ url_for('.chicago_stations') }}")
                     .done(response => {
                         response["chicago-stations"].forEach(neighbor => {
                             var railroad = getRailroadsAsTable().find(railroadEntry => neighbor === railroadEntry[3]);
@@ -766,7 +766,7 @@ function populateOrientations(sourceTile, coord, tileId) {
     }
 
     var sourceOutline = $(sourceTile).css("outline");
-    return $.get("{{ url_for('legal_orientations') }}", {coord: coord, tileId: tileId})
+    return $.get("{{ url_for('.legal_orientations') }}", {coord: coord, tileId: tileId})
         .then(function(result) {
             $("#tile-orientations").empty();
 
@@ -870,7 +870,7 @@ function populateTiles(coord) {
 
     $("#delete-tile-button").attr("data-coord", coord);
 
-    $.get("{{ url_for('legal_tiles') }}", {coord: coord})
+    $.get("{{ url_for('.legal_tiles') }}", {coord: coord})
         .then(function(result) {
             $("#tile-options").empty();
             $("#tile-orientations").empty();
@@ -1059,7 +1059,7 @@ async function importTiles(importText) {
     await Promise.all(importText.trim().split("\n").map(rowStr => {
         var rowData = rowStr.split(";", 3).map(cell => cell.trim());
 
-        return $.get("{{ url_for('legal_orientations') }}", {coord: rowData[0], tileId: rowData[1]})
+        return $.get("{{ url_for('.legal_orientations') }}", {coord: rowData[0], tileId: rowData[1]})
             .done(function(legalOrientationsResponse) {
                 var legalOrientations = legalOrientationsResponse["legal-orientations"];
                 if (isEmpty(legalOrientations) || !legalOrientations.includes(parseInt(rowData[2]))) {

@@ -2,7 +2,7 @@ import collections
 import json
 import os
 
-from flask import jsonify, render_template, request, url_for
+from flask import Blueprint, g, jsonify, render_template, request, url_for
 from flask_mail import Message
 from rq import Queue
 
@@ -13,6 +13,7 @@ from routes18xxweb.routes18xxweb import app, get_data_file, mail
 from routes18xxweb.calculator import redis_conn
 from routes18xxweb.logger import get_logger, init_logger, set_log_format
 
+game_app = Blueprint('game_app', __name__)
 
 LOG = get_logger("routes18xxweb")
 init_logger(LOG, "APP_LOG_LEVEL")
@@ -92,6 +93,16 @@ _TILE_DICT = tiles._load_all()
 
 _TILE_COORDS = []
 
+@game_app.url_defaults
+def add_game_name(endpoint, values):
+    if "game_name" not in values:
+        values["game_name"] = g.game_name
+
+@game_app.url_value_preprocessor
+def pull_game_name(endpoint, values):
+    g.game_name = values.pop('game_name')
+
+
 def get_tile_coords():
     global _TILE_COORDS
 
@@ -109,6 +120,10 @@ def get_tile_coords():
     return _TILE_COORDS
 
 @app.route("/")
+def game_picker():
+    return "placeholder"
+
+@game_app.route("/")
 def main():
     city_names = {}
     for cell in board_cells():
@@ -131,7 +146,7 @@ def main():
             city_names=city_names,
             terminal_city_boundaries=terminal_city_boundaries)
 
-@app.route("/calculate", methods=["POST"])
+@game_app.route("/calculate", methods=["POST"])
 def calculate():
     railroads_state_rows = json.loads(request.form.get("railroads-json"))
     removed_railroads = json.loads(request.form.get("removed-railroads-json"))
@@ -156,7 +171,7 @@ def calculate():
 
     return jsonify({"jobId": job.id})
 
-@app.route("/calculate/result")
+@game_app.route("/calculate/result")
 def calculate_result():
     routes_json = _get_calculate_result(request.args.get("jobId"))
 
@@ -197,7 +212,7 @@ def _get_calculate_result(job_id):
 
     return routes_json
 
-@app.route("/calculate/cancel", methods=["POST"])
+@game_app.route("/calculate/cancel", methods=["POST"])
 def cancel_calculate_request():
     job_id = request.form.get("jobId")
     job = CALCULATOR_QUEUE.fetch_job(job_id)
@@ -268,7 +283,7 @@ def _get_orientations(coord, tile_id):
 
     return orientations
 
-@app.route("/board/tile-coords")
+@game_app.route("/board/tile-coords")
 def legal_tile_coords():
     LOG.info("Legal tile coordinates request.")
 
@@ -283,12 +298,12 @@ def legal_tile_coords():
 
     return jsonify({"tile-coords": list(sorted(legal_tile_coordinates))})
 
-@app.route("/board/tile-image")
+@game_app.route("/board/tile-image")
 def board_tile_image():
     tile_id = request.args.get("tileId")
     return url_for('static', filename='images/tiles/{:03}'.format(int(tile_id)))
 
-@app.route("/board/legal-tiles")
+@game_app.route("/board/legal-tiles")
 def legal_tiles():
     coord = request.args.get("coord")
 
@@ -301,7 +316,7 @@ def legal_tiles():
 
     return jsonify({"legal-tile-ids": legal_tile_ids})
 
-@app.route("/board/legal-orientations")
+@game_app.route("/board/legal-orientations")
 def legal_orientations():
     coord = request.args.get("coord")
     tile_id = request.args.get("tileId")
@@ -314,7 +329,7 @@ def legal_orientations():
 
     return jsonify({"legal-orientations": list(sorted(orientations)) if orientations is not None else orientations})
 
-@app.route("/board/tile-info")
+@game_app.route("/board/tile-info")
 def board_tile_info():
     coord = request.args.get("coord")
     chicago_neighbor = request.args.get("chicagoNeighbor")
@@ -336,7 +351,7 @@ def board_tile_info():
 
     return jsonify({"info": info})
 
-@app.route("/board/private-company-info")
+@game_app.route("/board/private-company-info")
 def board_private_company_info():
     coord = request.args.get("coord")
     company = request.args.get("company")
@@ -355,7 +370,7 @@ def board_private_company_info():
 
     return jsonify({"info": info})
 
-@app.route("/board/phase")
+@game_app.route("/board/phase")
 def board_phase():
     LOG.info("Phase request")
 
@@ -375,7 +390,7 @@ def board_phase():
 
     return jsonify({"phase": phase})
 
-@app.route("/railroads/legal-railroads")
+@game_app.route("/railroads/legal-railroads")
 def legal_railroads():
     LOG.info("Legal railroads request.")
 
@@ -390,7 +405,7 @@ def legal_railroads():
         "home-cities": {railroad: railroads.RAILROAD_HOME_CITIES[railroad] for railroad in legal_railroads}
     })
 
-@app.route("/railroads/removable-railroads")
+@game_app.route("/railroads/removable-railroads")
 def removable_railroads():
     LOG.info("Removable railroads request.")
 
@@ -405,7 +420,7 @@ def removable_railroads():
         "home-cities": {railroad: railroads.RAILROAD_HOME_CITIES[railroad] for railroad in removable_railroads}
     })
 
-@app.route("/railroads/trains")
+@game_app.route("/railroads/trains")
 def trains():
     LOG.info("Train request.")
 
@@ -416,7 +431,7 @@ def trains():
 
     return jsonify({"trains": train_strs})
 
-@app.route("/railroads/cities")
+@game_app.route("/railroads/cities")
 def cities():
     LOG.info("Cities request.")
 
@@ -426,7 +441,7 @@ def cities():
 
     return jsonify({"cities": all_cities})
 
-@app.route("/railroads/legal-chicago-stations")
+@game_app.route("/railroads/legal-chicago-stations")
 def chicago_stations():
     LOG.info("Legal Chicago stations request.")
 
@@ -438,7 +453,7 @@ def chicago_stations():
 
     return jsonify({"chicago-stations": legal_stations})
 
-@app.route("/railroads/legal-token-coords")
+@game_app.route("/railroads/legal-token-coords")
 def legal_token_coords():
     company_name = request.args.get("companyName")
 
@@ -480,12 +495,12 @@ def _build_general_message():
 
     return msg
 
-@app.route("/report/general-issue", methods=["POST"])
+@game_app.route("/report/general-issue", methods=["POST"])
 def report_general_issue():
     mail.send(_build_general_message())
     return ""
 
-@app.route("/report/calc-issue", methods=["POST"])
+@game_app.route("/report/calc-issue", methods=["POST"])
 def report_calc_issue():
     target_railroad = request.form.get("targetRailroad")
     job_id = request.form.get("jobId")
@@ -507,7 +522,7 @@ def report_calc_issue():
 
     return ""
 
-@app.route("/report/tile-issue", methods=["POST"])
+@game_app.route("/report/tile-issue", methods=["POST"])
 def report_tile_issue():
     placed_tiles_headers = json.loads(request.form.get("placedTilesHeaders"))
     placed_tiles_data = json.loads(request.form.get("placedTilesData"))
@@ -537,3 +552,5 @@ def report_tile_issue():
     mail.send(msg)
 
     return ""
+
+app.register_blueprint(game_app, url_prefix='/game/<game_name>')

@@ -127,18 +127,18 @@ $("#general-report-issue-submit").click(function() {
     if ($("#calculate-tab-content").hasClass("active")) {
         var reportData = gatherCalcIssueData();
         reportData.subject = "route calculation issue";
-        reportIssue("general-report-issue", reportData, "{{ url_for('report_calc_issue') }}");
+        reportIssue("general-report-issue", reportData, "{{ url_for('.report_calc_issue') }}");
     } else {
         var reportData = gatherGeneralIssueData();
         reportData.subject = "general issue";
-        reportIssue("general-report-issue", reportData, "{{ url_for('report_general_issue') }}");
+        reportIssue("general-report-issue", reportData, "{{ url_for('.report_general_issue') }}");
     }
 });
 
 $("#tile-report-issue-submit").click(function() {
     var reportData = gatherTileIssueData();
     reportData.subject = "tile issue";
-    reportIssue("tile-report-issue", reportData, "{{ url_for('report_tile_issue') }}");
+    reportIssue("tile-report-issue", reportData, "{{ url_for('.report_tile_issue') }}");
 });
 
 

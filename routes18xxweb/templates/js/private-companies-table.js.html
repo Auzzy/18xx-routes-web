@@ -32,13 +32,13 @@ function getIndependentRailroadsAsTable() {
 function getPrivateCompanySpaceInfo(coord, privateCompanyName, callback) {
     if (coord === chicago) {
         getTileInfo(coord, undefined, (tileInfo) => {
-            $.get("{{ url_for('board_private_company_info') }}", {coord: coord, company: privateCompanyName, phase: tileInfo["phase"]})
+            $.get("{{ url_for('.board_private_company_info') }}", {coord: coord, company: privateCompanyName, phase: tileInfo["phase"]})
                 .done(function(response) {
                     callback(response["info"]);
                 });
         });
     } else {
-        $.get("{{ url_for('board_private_company_info') }}", {coord: coord, company: privateCompanyName})
+        $.get("{{ url_for('.board_private_company_info') }}", {coord: coord, company: privateCompanyName})
             .done(function(response) {
                 callback(response["info"]);
             });
@@ -142,8 +142,8 @@ async function importPrivateCompanies(importText) {
         }
 
         return $.when(
-                $.get("{{ url_for('legal_railroads') }}"),
-                $.get("{{ url_for('legal_token_coords') }}", {companyName: rowData[0]})
+                $.get("{{ url_for('.legal_railroads') }}"),
+                $.get("{{ url_for('.legal_token_coords') }}", {companyName: rowData[0]})
             ).done(function(legalRailroadsResponse, legalTokenCoordsResponse) {
                 if (legalRailroadsResponse[0]["railroads"].includes(rowData[1])
                         && (isEmpty(rowData[2]) || legalTokenCoordsResponse[0]["coords"].includes(rowData[2]))) {
@@ -280,7 +280,7 @@ function populatePrivateCompanyTokenCoordDropdown(sourceRow) {
     dropdownMenu.empty();
 
     var companyName = sourceRow.attr("data-name");
-    $.get("{{ url_for('legal_token_coords') }}", {companyName: companyName})
+    $.get("{{ url_for('.legal_token_coords') }}", {companyName: companyName})
         .done(function(result) {
             result["coords"].forEach(tokenCoord => {
                 var itemHtml = `${cityNames[tokenCoord]} (${tokenCoord})`;

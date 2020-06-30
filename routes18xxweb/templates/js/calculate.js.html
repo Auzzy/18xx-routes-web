@@ -31,7 +31,7 @@ $("#calculate-dropdown").on("show.bs.dropdown", function () {
 function cancelCurrentJob() {
     var jobId = $("#calculate-tab-content").attr("data-job-id");
     if (jobId !== undefined) {
-        $.post("{{ url_for('cancel_calculate_request') }}", {jobId: jobId});
+        $.post("{{ url_for('.cancel_calculate_request') }}", {jobId: jobId});
         $("#calculate-tab-content").removeAttr("data-job-id");
         toggleEnableInput(true);
     }
@@ -62,7 +62,7 @@ function toggleCities(self) {
 }
 
 function requestAndDisplayRoutes(jobId) {
-    $.get("{{ url_for('calculate_result') }}", {jobId: jobId})
+    $.get("{{ url_for('.calculate_result') }}", {jobId: jobId})
         .done(function(resultJson) {
             if (!jQuery.isEmptyObject(resultJson)) {
                 if (resultJson.hasOwnProperty("jobId")) {
@@ -167,7 +167,7 @@ function calculate() {
         "board-state-json": JSON.stringify(getTilesAsTable()),
         "railroad-name": $("#calculate-dropdown").attr("data-selected")
     }
-    $.post("{{ url_for('calculate') }}", postData)
+    $.post("{{ url_for('.calculate') }}", postData)
         .done(function(resultJson) {
             $("#calculate-tab-content").attr("data-job-id", resultJson["jobId"]);
             requestAndDisplayRoutes(resultJson["jobId"]);

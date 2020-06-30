@@ -119,7 +119,7 @@ function getPhase() {
     var allTrains = new Array().concat(...getRailroadsAsTable().map(railroad => {
         return isEmpty(railroad[1]) ? [] : railroad[1].split(",").map(value => value.trim());
     }));
-    return $.get("{{ url_for('board_phase') }}", {trains: JSON.stringify(Array.from(new Set(allTrains)))})
+    return $.get("{{ url_for('.board_phase') }}", {trains: JSON.stringify(Array.from(new Set(allTrains)))})
         .then(result => {
             return result["phase"];
         });
@@ -170,10 +170,10 @@ function importRailroads(importText) {
         .filter(row => row.length < 2 || isEmpty(row[1][0]) || row[1][0].trim().toLowerCase() !== "removed");
 
     return $.when(
-        $.get("{{ url_for('legal_railroads') }}"),
-        $.get("{{ url_for('trains') }}"),
-        $.get("{{ url_for('cities') }}"),
-        $.get("{{ url_for('chicago_stations') }}")
+        $.get("{{ url_for('.legal_railroads') }}"),
+        $.get("{{ url_for('.trains') }}"),
+        $.get("{{ url_for('.cities') }}"),
+        $.get("{{ url_for('.chicago_stations') }}")
     ).then((railroadsResponse, trainsResponse, citiesResponse, chicagoNeighborsResponse) => {
         var homeCities = railroadsResponse[0]["home-cities"];
         var legalRailroads = railroadsResponse[0]["railroads"];
@@ -372,7 +372,7 @@ function chiacgoPopoverListGroup(railroadName, cityItem) {
         .map((index, row) => $(row).attr("data-neighbor"))
         .toArray();
 
-    $.get("{{ url_for('chicago_stations') }}", {stations: JSON.stringify(currentChicagoNeighbors)})
+    $.get("{{ url_for('.chicago_stations') }}", {stations: JSON.stringify(currentChicagoNeighbors)})
         .done(function(result) {
             result["chicago-stations"].forEach((neighbor, index) => {
                 popoverListGroup
@@ -429,7 +429,7 @@ function populateStationsModal(source) {
     var currentStations = currentStationsAttr !== undefined ? currentStationsAttr.split(",") : new Array();
     var currentNeighbor = stationsDisplay.attr("data-neighbor");
 
-    $.get("{{ url_for('cities') }}")
+    $.get("{{ url_for('.cities') }}")
         .done(function(result) {
             result["cities"].forEach(cell => {
                 var cityItemText = (cityNames.hasOwnProperty(cell) ? cityNames[cell] : cell) + ` (${cell})`;
@@ -576,7 +576,7 @@ function populateTrainsModal(source) {
     var trainCounts = {};
     currentTrains.forEach(index => {trainCounts[index] = (trainCounts[index] || 0) + 1;});
 
-    $.get("{{ url_for('trains') }}")
+    $.get("{{ url_for('.trains') }}")
         .done(function(result) {
             result["trains"].forEach(train => {
                 var trainItem = $("<button></button>")
@@ -637,7 +637,7 @@ function limitTrains() {
 function populateRailroadsDropdown(source) {
     $("#add-railroad-dropdown-list").empty();
 
-    $.get("{{ url_for('legal_railroads') }}", {railroads: JSON.stringify(getRailroads())})
+    $.get("{{ url_for('.legal_railroads') }}", {railroads: JSON.stringify(getRailroads())})
         .done(function(result) {
             result["railroads"]
                 .filter(railroad => !getRemovedRailroads().includes(railroad))
