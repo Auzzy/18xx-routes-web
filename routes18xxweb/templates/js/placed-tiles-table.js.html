@@ -79,7 +79,7 @@ function removeTile(coord) {
 function getTileInfo(coord, chicagoNeighbor, callback) {
     var tile = tilesTable.find(row => row[0] === coord);
     var tileId = isEmpty(tile) ? null : tile[1];
-    $.get("{{ url_for('board_tile_info') }}", {coord: coord, chicagoNeighbor: chicagoNeighbor, tileId: tileId})
+    $.get("{{ url_for('.board_tile_info') }}", {coord: coord, chicagoNeighbor: chicagoNeighbor, tileId: tileId})
         .done(function(response) {
             var info = response["info"];
             info["orientation"] = isEmpty(tile) ? null : tile[2];

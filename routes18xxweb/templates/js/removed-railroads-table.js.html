@@ -65,7 +65,7 @@ function importRemovedRailroads(importText) {
         .filter(row => row.length >= 2 && !isEmpty(row[1]) && row[1].trim().toLowerCase() === "removed")
         .map(row => row[0]);
 
-    return $.get("{{ url_for('removable_railroads') }}")
+    return $.get("{{ url_for('.removable_railroads') }}")
         .then(railroadsResponse => {
             var legalRailroads = railroadsResponse["railroads"];
             return [
@@ -105,7 +105,7 @@ function prepareRemovedRailroadsForExport(removedRailroadNames) {
 function populateRemoveRailroadsDropdown(source) {
     $("#remove-railroad-dropdown-list").empty();
 
-    $.get("{{ url_for('removable_railroads') }}", {railroads: JSON.stringify(getRemovedRailroads())})
+    $.get("{{ url_for('.removable_railroads') }}", {railroads: JSON.stringify(getRemovedRailroads())})
         .done(function(result) {
             var activeRailroads = getRailroads();
             result["railroads"]
