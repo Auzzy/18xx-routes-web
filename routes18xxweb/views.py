@@ -6,12 +6,12 @@ from flask import Blueprint, g, jsonify, render_template, request, url_for
 from flask_mail import Message
 from rq import Queue
 
-from routes18xx import board, boardstate, boardtile, find_best_routes, game, railroads, tiles, LOG as LIB_LOG
-from routes18xx.cell import _CELL_DB, Cell, board_cells, initialize_cells
-from routes18xx.games.routes1846 import private_companies
+from routes18xx import boardstate, find_best_routes, railroads, tiles, trains as trains_mod, LOG as LIB_LOG
+from routes18xx.games.routes1846 import private_companies, tokens as tokens1846
 
 from routes18xxweb.routes18xxweb import app, get_data_file, mail
 from routes18xxweb.calculator import redis_conn
+from routes18xxweb.games import get_board, get_game, get_railroad_info, get_train_info
 from routes18xxweb.logger import get_logger, init_logger, set_log_format
 
 game_app = Blueprint('game_app', __name__)
@@ -23,24 +23,10 @@ set_log_format(LOG)
 init_logger(LIB_LOG, "LIB_LOG_LEVEL", 0)
 set_log_format(LIB_LOG)
 
-CHICAGO_CELL = Cell.from_coord("D6")
-
 CALCULATOR_QUEUE = Queue(connection=redis_conn)
 
 MESSAGE_BODY_FORMAT = "User: {user}\nComments:\n{comments}"
 TILE_MESSAGE_BODY_FORMAT = MESSAGE_BODY_FORMAT + "\nSelected:\n\tcoordinate: {coord}\n\ttile: {tile_id}\n\torientation: {orientation}"
-
-CHICAGO_STATION_SIDES = (0, 3, 4, 5)
-CHICAGO_STATION_COORDS = collections.OrderedDict([(str(CHICAGO_CELL.neighbors[side]), side) for side in CHICAGO_STATION_SIDES])
-RAILROAD_NAMES = {
-    "Baltimore & Ohio",
-    "Illinois Central",
-    "New York Central",
-    "Chesapeake & Ohio",
-    "Erie",
-    "Grand Trunk",
-    "Pennsylvania"
-}
 
 RAILROADS_COLUMN_MAP = {
     "name": "name",
@@ -73,8 +59,8 @@ PLACED_TILES_COLUMN_NAMES = [PLACED_TILES_COLUMN_MAP[colname] for colname in boa
 PRIVATE_COMPANY_COLUMN_NAMES = [PRIVATE_COMPANY_COLUMN_MAP[colname] for colname in private_companies.FIELDNAMES]
 
 PRIVATE_COMPANY_COORDS = {
-    "Steamboat Company": private_companies.STEAMBOAT_COORDS,
-    "Meat Packing Company": private_companies.MEAT_PACKING_COORDS,
+    "Steamboat Company": tokens1846.SteamboatToken.COORDS,
+    "Meat Packing Company": tokens1846.MeatPackingToken.COORDS,
     "Mail Contract": [],
     "Big 4": [private_companies.HOME_CITIES["Big 4"]],
     "Michigan Southern": [private_companies.HOME_CITIES["Michigan Southern"]]
@@ -89,10 +75,6 @@ with open(get_data_file("private-companies.json")) as private_company_file:
 with open(get_data_file("terminal-cities.json")) as terminal_cities_file:
     TERMINAL_CITY_DATA = json.load(terminal_cities_file)
 
-_BASE_BOARD = board.Board.load()
-_BOARD_TILES = boardtile.load()
-_TILE_DICT = tiles._load_all()
-
 _TILE_COORDS = []
 
 @game_app.url_defaults
@@ -105,19 +87,18 @@ def pull_game_name(endpoint, values):
     g.game_name = values.pop('game_name')
 
 
-def get_tile_coords():
+def get_tile_coords(board):
     global _TILE_COORDS
 
     if not _TILE_COORDS:
         tile_coords = []
-        for row, cols in sorted(_CELL_DB.items()):
-            for col in sorted(cols):
-                coord = f"{row}{col}"
-                space = _get_space(coord)
-                # Explicitly allow I5 in order to allow placing stations from the map. Allowing all built-in phase 4
-                # tiles to be clickable would require some more special casing, so I determined this is "better"...
-                if not space or space.phase is not None or coord == "I5":
-                    tile_coords.append(coord)
+        for cell in board.cells:
+            coord = str(cell)
+            space = board.get_space(cell)
+            # Explicitly allow I5 in order to allow placing stations from the map. Allowing all built-in upgrade level 4
+            # tiles to be clickable would require some more special casing, so I determined this is "better"...
+            if not space or space.phase is not None or coord == "I5":
+                tile_coords.append(coord)
         _TILE_COORDS = tile_coords
     return _TILE_COORDS
 
@@ -127,9 +108,11 @@ def game_picker():
 
 @game_app.route("/")
 def main():
+    board = get_board(g.game_name)
+
     city_names = {}
-    for cell in board_cells():
-        space = _BASE_BOARD.get_space(cell)
+    for cell in board.cells:
+        space = board.get_space(cell)
         if space and space.name != str(cell):
             # Its such a long name that it makes layout trickier, and looks
             # worse in comparison to others city names.
@@ -144,7 +127,7 @@ def main():
             private_company_rownames=PRIVATE_COMPANIES,
             private_company_colnames=PRIVATE_COMPANY_COLUMN_NAMES,
             placed_tiles_colnames=PLACED_TILES_COLUMN_NAMES,
-            tile_coords=get_tile_coords(),
+            tile_coords=get_tile_coords(board),
             city_names=city_names,
             terminal_city_boundaries=terminal_city_boundaries)
 
@@ -228,13 +211,14 @@ def _get_calculate_result(job_id):
 @game_app.route("/calculate/cancel", methods=["POST"])
 def cancel_calculate_request():
     job_id = request.form.get("jobId")
+
     job = CALCULATOR_QUEUE.fetch_job(job_id)
     if job:
         job.delete()
     return jsonify({})
 
 def calculate_worker(game_name, railroads_state_rows, private_companies_rows, board_state_rows, railroad_name):
-    game = game.Game.load(game_name)
+    game = get_game(game_name)
     board_state = boardstate.load(game, [dict(zip(boardstate.FIELDNAMES, row)) for row in board_state_rows if any(val for val in row)])
     railroad_dict = railroads.load(game, board_state, [dict(zip(railroads.FIELDNAMES, row)) for row in railroads_state_rows if any(val for val in row)])
     game.capture_phase(railroad_dict)
@@ -248,19 +232,15 @@ def calculate_worker(game_name, railroads_state_rows, private_companies_rows, bo
 
     return find_best_routes(game, board_state, railroad_dict, railroad_dict[railroad_name])
 
-def _get_space(coord):
-    for tile in _BOARD_TILES:
-        if str(tile.cell) == coord:
-            return tile
-
-def _legal_tile_ids_by_coord(coord):
-    space = _get_space(coord)
+def _legal_tile_ids_by_coord(game, coord):
+    board = get_board(game)
+    space = board.get_space(board.cell(coord))
     # If the coord is a built-in phase 4 tile
     if space and space.phase is None:
         return []
 
     legal_tile_ids = []
-    for tile in _TILE_DICT.values():
+    for tile in game.tiles.values():
         if not space:
             if tile.is_city or tile.is_z or tile.is_chicago:
                 continue
@@ -269,29 +249,31 @@ def _legal_tile_ids_by_coord(coord):
         elif space.is_city != tile.is_city or space.is_z != tile.is_z or space.is_chicago != tile.is_chicago:
             continue
 
-        if _get_orientations(coord, tile.id):
+        if _get_orientations(game, coord, tile.id):
             legal_tile_ids.append(tile.id)
 
     return legal_tile_ids
 
-def _get_orientations(coord, tile_id):
+def _get_orientations(game, coord, tile_id):
     if not coord or not tile_id:
         return None
 
+    board = get_board(game)
+
     try:
-        cell = Cell.from_coord(coord)
+        cell = board.cell(coord)
     except ValueError:
         return None
 
-    tile = tiles.get_tile(tile_id)
+    tile = game.tiles.get(tile_id)
     if not tile:
         return None
 
     orientations = []
     for orientation in range(0, 6):
         try:
-            _BASE_BOARD._validate_place_tile_neighbors(cell, tile, orientation)
-            _BASE_BOARD._validate_place_tile_upgrade(_get_space(coord), cell, tile, orientation)
+            board._validate_place_tile_neighbors(cell, tile, orientation)
+            board._validate_place_tile_upgrade(board.get_space(cell), cell, tile, orientation)
         except ValueError:
             continue
 
@@ -306,7 +288,7 @@ def legal_tile_coords():
     current_coord = request.args.get("coord")
     existing_tile_coords = {coord for coord in json.loads(request.args.get("tile_coords")) if coord}
 
-    legal_tile_coordinates = set(get_tile_coords()) - existing_tile_coords
+    legal_tile_coordinates = set(get_tile_coords(get_board(g.game_name))) - existing_tile_coords
     if current_coord:
         legal_tile_coordinates.add(current_coord)
 
@@ -317,7 +299,7 @@ def legal_tile_coords():
 @game_app.route("/board/tile-image")
 def board_tile_image():
     tile_id = request.args.get("tileId")
-    return url_for('static', filename='images/tiles/{:03}'.format(int(tile_id)))
+    return url_for('static', filename='images/tiles/{:03}'.format(tile_id))
 
 @game_app.route("/board/legal-tiles")
 def legal_tiles():
@@ -325,7 +307,7 @@ def legal_tiles():
 
     LOG.info(f"Legal tiles request for {coord}.")
 
-    legal_tile_ids = _legal_tile_ids_by_coord(coord)
+    legal_tile_ids = _legal_tile_ids_by_coord(get_game(g.game_name), coord)
     legal_tile_ids.sort()
 
     LOG.info(f"Legal tiles response for {coord}: {legal_tile_ids}")
@@ -339,7 +321,7 @@ def legal_orientations():
 
     LOG.info(f"Legal orientations request for {tile_id} at {coord}.")
 
-    orientations = _get_orientations(coord, tile_id)
+    orientations = _get_orientations(get_game(g.game_name), coord, tile_id)
 
     LOG.info(f"Legal orientations response for {tile_id} at {coord}: {orientations}")
 
@@ -351,7 +333,9 @@ def board_tile_info():
     chicago_neighbor = request.args.get("chicagoNeighbor")
     tile_id = request.args.get("tileId")
 
-    tile = tiles.get_tile(tile_id) if tile_id else _BASE_BOARD.get_space(Cell.from_coord(coord))
+    game = get_game(g.game_name)
+    board = get_board(game)
+    tile = game.tiles.get(tile_id) if tile_id else board.get_space(board.cell(coord))
 
     default_offset = {"x": 0, "y": 0}
     offset_data = STATION_DATA["tile"] if tile_id else STATION_DATA["board"]
@@ -360,7 +344,8 @@ def board_tile_info():
         offset = offset[chicago_neighbor]
 
     info = {
-        "capacity": tile.capacity,
+        # Stop-gap for the time being. I need to figure out what to actually do with capacity keys at some point.
+        "capacity": sum(tile.capacity.values()) if isinstance(tile.capacity, dict) else tile.capacity,
         "offset": offset,
         "phase": tile.phase
     }
@@ -377,7 +362,8 @@ def board_private_company_info():
     offset_data = PRIVATE_COMPANY_DATA[company]
     offset = offset_data.get(coord, {}).get("offset", default_offset)
 
-    if coord == str(CHICAGO_CELL):
+    board = get_board(g.game_name)
+    if coord == str(board.cell("D6")):
         offset = offset.get(phase, default_offset) if phase and phase in offset else offset.get("default", default_offset)
 
     info = {
@@ -392,15 +378,10 @@ def board_phase():
 
     train_strs = json.loads(request.args.get("trains"))
     if train_strs:
-        phases = []
-        for train_str in train_strs:
-            try:
-                phases.append(railroads.Train.create(train_str).phase)
-            except ValueError:
-                continue
-        phase = max(phases)
+        train_info = get_train_info(g.game_name)
+        phase = max(train.phase for train in trains_mod.convert(train_info, ",".join(train_strs)))
     else:
-        phase = 1
+        phase = get_game(g.game_name).phases[0]
 
     LOG.info(f"Phase: {phase}")
 
@@ -412,13 +393,14 @@ def legal_railroads():
 
     existing_railroads = {railroad for railroad in json.loads(request.args.get("railroads", "{}")) if railroad}
 
-    legal_railroads = RAILROAD_NAMES - existing_railroads
+    railroads_info = get_railroad_info(g.game_name)
+    legal_railroads = set(railroads_info.keys()) - existing_railroads
 
     LOG.info(f"Legal railroads response: {legal_railroads}")
 
     return jsonify({
         "railroads": list(sorted(legal_railroads)),
-        "home-cities": {railroad: railroads.RAILROAD_HOME_CITIES[railroad] for railroad in legal_railroads}
+        "home-cities": {railroad: railroads_info[railroad]["home"] for railroad in legal_railroads}
     })
 
 @game_app.route("/railroads/removable-railroads")
@@ -427,20 +409,22 @@ def removable_railroads():
 
     existing_railroads = {railroad for railroad in json.loads(request.args.get("railroads", "{}")) if railroad}
 
-    removable_railroads = railroads.REMOVABLE_RAILROADS - existing_railroads
+    railroads_info = get_railroad_info(g.game_name)
+    all_removable_railroads = {name for name, attribs in railroads_info.items() if attribs.get("is_removable")}
+    removable_railroads = all_removable_railroads - existing_railroads
 
     LOG.info(f"Removable railroads response: {removable_railroads}")
 
     return jsonify({
         "railroads": list(sorted(removable_railroads)),
-        "home-cities": {railroad: railroads.RAILROAD_HOME_CITIES[railroad] for railroad in removable_railroads}
+        "home-cities": {railroad: railroads_info[railroad]["home"] for railroad in removable_railroads}
     })
 
 @game_app.route("/railroads/trains")
 def trains():
     LOG.info("Train request.")
 
-    all_trains = [railroads.Train(train_attr[0], train_attr[1], phase) for train_attr, phase in railroads.TRAIN_TO_PHASE.items()]
+    all_trains = get_train_info(g.game_name)
     train_strs = [str(train) for train in sorted(all_trains, key=lambda train: (train.collect, train.visit))]
 
     LOG.info(f"Train response: {all_trains}")
@@ -451,7 +435,8 @@ def trains():
 def cities():
     LOG.info("Cities request.")
 
-    all_cities = [str(tile.cell) for tile in sorted(_BOARD_TILES, key=lambda tile: tile.cell) if tile.is_city and not tile.is_terminal_city]
+    board = get_board(g.game_name)
+    all_cities = [str(cell) for cell in sorted(board.cells) if board.get_space(cell) and board.get_space(cell).is_city]
 
     LOG.info(f"Cities response: {all_cities}")
 
@@ -463,7 +448,11 @@ def chicago_stations():
 
     existing_station_coords = {coord for coord in json.loads(request.args.get("stations", "{}")) if coord}
 
-    legal_stations = list(sorted(set(CHICAGO_STATION_COORDS.keys()) - existing_station_coords))
+    chicago_cell = get_board(g.game_name).cell("D6")
+    chicago_station_sides = (0, 3, 4, 5)
+    chicago_station_coords = collections.OrderedDict([(str(chicago_cell.neighbors[side]), side) for side in chicago_station_sides])
+
+    legal_stations = list(sorted(set(chicago_station_coords.keys()) - existing_station_coords))
 
     LOG.info(f"Legal Chicago stations response: {legal_stations}")
 
