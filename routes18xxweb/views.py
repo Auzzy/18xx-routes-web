@@ -97,7 +97,7 @@ def get_tile_coords(board):
             space = board.get_space(cell)
             # Explicitly allow I5 in order to allow placing stations from the map. Allowing all built-in upgrade level 4
             # tiles to be clickable would require some more special casing, so I determined this is "better"...
-            if not space or space.phase is not None or coord == "I5":
+            if not space or space.upgrade_level is not None or coord == "I5":
                 tile_coords.append(coord)
         _TILE_COORDS = tile_coords
     return _TILE_COORDS
@@ -235,18 +235,18 @@ def calculate_worker(game_name, railroads_state_rows, private_companies_rows, bo
 def _legal_tile_ids_by_coord(game, coord):
     board = get_board(game)
     space = board.get_space(board.cell(coord))
-    # If the coord is a built-in phase 4 tile
-    if space and space.phase is None:
+    # If the coord is a built-in upgrade level 4 tile
+    if space and space.upgrade_level is None:
         return []
 
     legal_tile_ids = []
     for tile in game.tiles.values():
         if not space:
-            if tile.is_city or tile.is_z or tile.is_chicago:
+            if tile.is_stop:
                 continue
-        elif tile.phase <= space.phase:
+        elif tile.upgrade_level <= space.upgrade_level:
             continue
-        elif space.is_city != tile.is_city or space.is_z != tile.is_z or space.is_chicago != tile.is_chicago:
+        elif space.is_city != tile.is_city or space.is_town != tile.is_town or space.upgrade_attrs != tile.upgrade_attrs:
             continue
 
         if _get_orientations(game, coord, tile.id):
@@ -347,7 +347,7 @@ def board_tile_info():
         # Stop-gap for the time being. I need to figure out what to actually do with capacity keys at some point.
         "capacity": sum(tile.capacity.values()) if isinstance(tile.capacity, dict) else tile.capacity,
         "offset": offset,
-        "phase": tile.phase
+        "phase": tile.upgrade_level
     }
 
     return jsonify({"info": info})
