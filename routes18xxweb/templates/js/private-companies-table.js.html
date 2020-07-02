@@ -47,11 +47,11 @@ function getPrivateCompanySpaceInfo(coord, privateCompanyName, callback) {
 
 function setPrivateCompanyTokenCoord(privateCompanyRow, tokenCoord) {
     var companyName = privateCompanyRow.attr("data-name");
-    if (companyName === "Big 4") {
-        tokenCoord = "{{ independent_railroad_home_cities['Big 4'] }}";
-    } else if (companyName === "Michigan Southern") {
-        tokenCoord = "{{ independent_railroad_home_cities['Michigan Southern'] }}";
+    {%- for name, coord in private_company_default_token_coords.items() %}
+    if (companyName === "{{ name }}") {
+        tokenCoord = "{{ coord }}";
     }
+    {%- endfor %}
 
     var tokenDisplay = privateCompanyRow.find(".company-token .display");
     tokenDisplay.empty();
@@ -342,6 +342,6 @@ privateCompanyHeaders();
 {%- for name in private_company_rownames %}
 privateCompanyNewRow("{{ name }}");
 {% if name in indRailroadNames -%}
-setPrivateCompanyTokenCoord($("#private-companies-table tr[data-name='{{ name }}']"), "{{ independent_railroad_home_cities[name] }}");
+setPrivateCompanyTokenCoord($("#private-companies-table tr[data-name='{{ name }}']"), null);
 {%- endif -%}
 {% endfor %}

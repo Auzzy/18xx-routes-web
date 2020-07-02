@@ -7,7 +7,6 @@ from flask_mail import Message
 from rq import Queue
 
 from routes18xx import boardstate, find_best_routes, railroads, tiles, trains as trains_mod, LOG as LIB_LOG
-from routes18xx.games.routes1846 import private_companies, tokens as tokens1846
 
 from routes18xxweb.routes18xxweb import app, get_data_file, mail
 from routes18xxweb.calculator import redis_conn
@@ -46,25 +45,8 @@ PLACED_TILES_COLUMN_MAP = {
     "orientation": "orientation"
 }
 
-PRIVATE_COMPANIES = (
-    "Steamboat Company",
-    "Meat Packing Company",
-    "Mail Contract",
-    "Big 4",
-    "Michigan Southern"
-)
-
 RAILROADS_COLUMN_NAMES = [RAILROADS_COLUMN_MAP[colname] for colname in railroads.FIELDNAMES]
 PLACED_TILES_COLUMN_NAMES = [PLACED_TILES_COLUMN_MAP[colname] for colname in boardstate.FIELDNAMES]
-PRIVATE_COMPANY_COLUMN_NAMES = [PRIVATE_COMPANY_COLUMN_MAP[colname] for colname in private_companies.FIELDNAMES]
-
-PRIVATE_COMPANY_COORDS = {
-    "Steamboat Company": tokens1846.SteamboatToken.COORDS,
-    "Meat Packing Company": tokens1846.MeatPackingToken.COORDS,
-    "Mail Contract": [],
-    "Big 4": [private_companies.HOME_CITIES["Big 4"]],
-    "Michigan Southern": [private_companies.HOME_CITIES["Michigan Southern"]]
-}
 
 with open(get_data_file("stations.json")) as stations_file:
     STATION_DATA = json.load(stations_file)
@@ -108,7 +90,8 @@ def game_picker():
 
 @game_app.route("/")
 def main():
-    board = get_board(g.game_name)
+    game = get_game(g.game_name)
+    board = get_board(game)
 
     city_names = {}
     for cell in board.cells:
@@ -121,11 +104,15 @@ def main():
 
     terminal_city_boundaries = {name: info["boundaries"] for name, info in TERMINAL_CITY_DATA.items()}
 
+    private_companies = game.get_game_submodule("private_companies")
+    private_company_names = private_companies.COMPANIES.keys() if private_companies else []
+    private_company_column_names = [PRIVATE_COMPANY_COLUMN_MAP[colname] for colname in private_companies.FIELDNAMES] if private_companies else []
+
     return render_template("index.html",
             railroads_colnames=RAILROADS_COLUMN_NAMES,
-            independent_railroad_home_cities=private_companies.HOME_CITIES,
-            private_company_rownames=PRIVATE_COMPANIES,
-            private_company_colnames=PRIVATE_COMPANY_COLUMN_NAMES,
+            private_company_default_token_coords=private_companies.PRIVATE_COMPANY_DEFAULT_COORDS if private_companies else {},
+            private_company_rownames=private_company_names,
+            private_company_colnames=private_company_column_names,
             placed_tiles_colnames=PLACED_TILES_COLUMN_NAMES,
             tile_coords=get_tile_coords(board),
             city_names=city_names,
@@ -223,7 +210,9 @@ def calculate_worker(game_name, railroads_state_rows, private_companies_rows, bo
     railroad_dict = railroads.load(game, board_state, [dict(zip(railroads.FIELDNAMES, row)) for row in railroads_state_rows if any(val for val in row)])
     game.capture_phase(railroad_dict)
 
-    private_companies.load(game, board_state, railroad_dict, [dict(zip(private_companies.FIELDNAMES, row)) for row in private_companies_rows if any(val for val in row)])
+    private_companies = game.get_game_submodule("private_companies")
+    if private_companies:
+        private_companies.load(game, board_state, railroad_dict, [dict(zip(private_companies.FIELDNAMES, row)) for row in private_companies_rows if any(val for val in row)])
     board_state.validate()
 
     if railroad_name not in railroad_dict:
@@ -460,13 +449,18 @@ def chicago_stations():
 
 @game_app.route("/railroads/legal-token-coords")
 def legal_token_coords():
+    game = get_game(g.game_name)
+    private_companies = game.get_game_submodule("private_companies")
+    if not private_companies:
+        return jsonify({"coords": []})
+
     company_name = request.args.get("companyName")
+    if company_name not in private_companies.COMPANIES:
+        raise ValueError(f"Received unsupport private company name: {company_name}")
 
     LOG.info(f"Legal {company_name} token coordinate request.")
 
-    coords = PRIVATE_COMPANY_COORDS.get(company_name)
-    if coords is None:
-        raise ValueError(f"Received unsupport private company name: {company_name}")
+    coords = private_companies.PRIVATE_COMPANY_COORDS.get(company_name, [])
 
     LOG.info(f"Legal {company_name} token coordinate response: {coords}")
 
@@ -476,8 +470,8 @@ def legal_token_coords():
 def _build_general_message():
     railroad_headers = json.loads(request.form.get("railroadHeaders"))
     railroads_data = json.loads(request.form.get("railroadData"))
-    private_companies_headers = json.loads(request.form.get("privateCompaniesHeaders"))
-    private_companies_data = json.loads(request.form.get("privateCompaniesData"))
+    private_companies_headers = json.loads(request.form.get("privateCompaniesHeaders", []))
+    private_companies_data = json.loads(request.form.get("privateCompaniesData", {}))
     placed_tiles_headers = json.loads(request.form.get("placedTilesHeaders"))
     placed_tiles_data = json.loads(request.form.get("placedTilesData"))
     user_email = request.form.get("email")
