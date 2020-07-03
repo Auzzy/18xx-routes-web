@@ -6,7 +6,8 @@ from flask import Blueprint, g, jsonify, render_template, request, url_for
 from flask_mail import Message
 from rq import Queue
 
-from routes18xx import boardstate, find_best_routes, railroads, tiles, trains as trains_mod, LOG as LIB_LOG
+from routes18xx import (boardstate, find_best_routes, railroads, placedtile, tiles, \
+    trains as trains_mod, LOG as LIB_LOG)
 
 from routes18xxweb.routes18xxweb import app, mail
 from routes18xxweb.calculator import redis_conn
@@ -312,7 +313,7 @@ def legal_orientations():
 @game_app.route("/board/tile-info")
 def board_tile_info():
     coord = request.args.get("coord")
-    chicago_neighbor = request.args.get("chicagoNeighbor")
+    station_branch = request.args.get("chicagoNeighbor")
     tile_id = request.args.get("tileId")
 
     game = get_game(g.game_name)
@@ -323,8 +324,8 @@ def board_tile_info():
     station_offsets = get_station_offsets(game)
     offset_data = station_offsets["tile"] if tile_id else station_offsets["board"]
     offset = offset_data.get(coord, {}).get("offset", default_offset)
-    if chicago_neighbor:
-        offset = offset[chicago_neighbor]
+    if station_branch:
+        offset = offset[station_branch]
 
     info = {
         # Stop-gap for the time being. I need to figure out what to actually do with capacity keys at some point.
@@ -426,19 +427,37 @@ def cities():
 
     return jsonify({"cities": all_cities})
 
-@game_app.route("/railroads/legal-chicago-stations")
+@game_app.route("/railroads/legal-split-city-stations")
 def chicago_stations():
-    LOG.info("Legal Chicago stations request.")
+    LOG.info("Legal split city stations request.")
 
     existing_station_coords = {coord for coord in json.loads(request.args.get("stations", "{}")) if coord}
+    # The default values can change once the templates are generalized. And
+    # they'll need to before implementing another game with split cities.
+    coord = request.args.get("coord", "D6")
+    tile_id = request.args.get("tileId", 300)
+    orientation = request.args.get("orientation", 0)
 
-    chicago_cell = get_board(g.game_name).cell("D6")
-    chicago_station_sides = (0, 3, 4, 5)
-    chicago_station_coords = collections.OrderedDict([(str(chicago_cell.neighbors[side]), side) for side in chicago_station_sides])
+    game = get_game(g.game_name)
+    board = get_board(game)
+    cell = board.cell(coord)
+    if tile_id and orientation:
+        split_city_space = placedtile.SplitCity.place(cell, game.tiles[tile_id], orientation)
+    else:
+        split_city_space = board.get_space(cell)
 
-    legal_stations = list(sorted(set(chicago_station_coords.keys()) - existing_station_coords))
+    split_city_station_coords = set()
+    for branch in split_city_space.capacity.keys():
+        unique_exit_coords = [branch_key for branch_key in branch if len(branch_key) == 1]
+        if unique_exit_coords:
+            # A unique exit coord is a sequence of length 1, so we need to extract it
+            split_city_station_coords.add(str(sorted(unique_exit_coords)[0][0]))
+        else:
+            split_city_station_coords.add(str(sorted(branch)[0]))
 
-    LOG.info(f"Legal Chicago stations response: {legal_stations}")
+    legal_stations = sorted(split_city_station_coords - existing_station_coords)
+
+    LOG.info(f"Legal split city stations response: {legal_stations}")
 
     return jsonify({"chicago-stations": legal_stations})
 
