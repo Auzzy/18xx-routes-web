@@ -336,11 +336,20 @@ def board_private_company_info():
     default_offset = {"x": 0, "y": 0}
     private_company_offsets = get_private_offsets(get_game(g.game_name))
     offset_data = private_company_offsets[company]
-    offset = offset_data.get(coord, {}).get("offset", default_offset)
+    coord_offset = offset_data.get(coord, {}).get("offset", default_offset)
 
-    board = get_board(g.game_name)
-    if coord == str(board.cell("D6")):
-        offset = offset.get(phase, default_offset) if phase and phase in offset else offset.get("default", default_offset)
+    if set(coord_offset.keys()) == {"x", "y"}:
+        offset = coord_offset
+    else:
+        game = get_game(g.game_name)
+        for offset_phase in sorted(coord_offset, key=game.phases.index, reverse=True):
+            if game.compare_phases(offset_phase, phase) >= 0:
+                offset = coord_offset[offset_phase]
+                break
+        else:
+            # This indicates a special offset will be needed in later phases,
+            # but we can use the default offset for now.
+            offset = default_offset
 
     info = {
         "offset": offset
