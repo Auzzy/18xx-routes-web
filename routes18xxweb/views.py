@@ -51,8 +51,6 @@ PLACED_TILES_COLUMN_MAP = {
 RAILROADS_COLUMN_NAMES = [RAILROADS_COLUMN_MAP[colname] for colname in railroads.FIELDNAMES]
 PLACED_TILES_COLUMN_NAMES = [PLACED_TILES_COLUMN_MAP[colname] for colname in boardstate.FIELDNAMES]
 
-_TILE_COORDS = []
-
 @game_app.url_defaults
 def add_game_name(endpoint, values):
     if "game_name" not in values:
@@ -64,19 +62,12 @@ def pull_game_name(endpoint, values):
 
 
 def get_tile_coords(board):
-    global _TILE_COORDS
-
-    if not _TILE_COORDS:
-        tile_coords = []
-        for cell in board.cells:
-            coord = str(cell)
-            space = board.get_space(cell)
-            # Explicitly allow I5 in order to allow placing stations from the map. Allowing all built-in upgrade level 4
-            # tiles to be clickable would require some more special casing, so I determined this is "better"...
-            if not space or space.upgrade_level is not None or coord == "I5":
-                tile_coords.append(coord)
-        _TILE_COORDS = tile_coords
-    return _TILE_COORDS
+    tile_coords = []
+    for cell in board.cells:
+        space = board.get_space(cell)
+        if not space or space.is_city or space.upgrade_level is not None:
+            tile_coords.append(str(cell))
+    return tile_coords
 
 @app.route("/")
 def game_picker():
