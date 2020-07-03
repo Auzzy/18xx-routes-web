@@ -78,14 +78,11 @@ def main():
     game = get_game(g.game_name)
     board = get_board(game)
 
-    city_names = {}
+    stop_names = {}
     for cell in board.cells:
         space = board.get_space(cell)
-        if space and space.name != str(cell):
-            # Its such a long name that it makes layout trickier, and looks
-            # worse in comparison to others city names.
-            name = "Chicago Conn." if space.name == "Chicago Connections" else space.name
-            city_names[str(cell)] = name
+        if space and space.is_stop:
+            stop_names[str(cell)] = space.nickname
 
     termini_boundaries = {name: info["boundaries"] for name, info in get_termini_boundaries(game).items()}
 
@@ -100,7 +97,7 @@ def main():
             private_company_colnames=private_company_column_names,
             placed_tiles_colnames=PLACED_TILES_COLUMN_NAMES,
             tile_coords=get_tile_coords(board),
-            city_names=city_names,
+            city_names=stop_names,
             terminal_city_boundaries=termini_boundaries)
 
 @game_app.route("/calculate", methods=["POST"])
