@@ -8,9 +8,11 @@ from rq import Queue
 
 from routes18xx import boardstate, find_best_routes, railroads, tiles, trains as trains_mod, LOG as LIB_LOG
 
-from routes18xxweb.routes18xxweb import app, get_data_file, mail
+from routes18xxweb.routes18xxweb import app, mail
 from routes18xxweb.calculator import redis_conn
-from routes18xxweb.games import get_board, get_game, get_railroad_info, get_train_info
+from routes18xxweb.games import (get_board, get_game, get_private_offsets, get_railroad_info, \
+     get_station_offsets, get_termini_boundaries, get_train_info)
+
 from routes18xxweb.logger import get_logger, init_logger, set_log_format
 
 game_app = Blueprint('game_app', __name__)
@@ -47,15 +49,6 @@ PLACED_TILES_COLUMN_MAP = {
 
 RAILROADS_COLUMN_NAMES = [RAILROADS_COLUMN_MAP[colname] for colname in railroads.FIELDNAMES]
 PLACED_TILES_COLUMN_NAMES = [PLACED_TILES_COLUMN_MAP[colname] for colname in boardstate.FIELDNAMES]
-
-with open(get_data_file("stations.json")) as stations_file:
-    STATION_DATA = json.load(stations_file)
-
-with open(get_data_file("private-companies.json")) as private_company_file:
-    PRIVATE_COMPANY_DATA = json.load(private_company_file)
-
-with open(get_data_file("terminal-cities.json")) as terminal_cities_file:
-    TERMINAL_CITY_DATA = json.load(terminal_cities_file)
 
 _TILE_COORDS = []
 
@@ -102,7 +95,7 @@ def main():
             name = "Chicago Conn." if space.name == "Chicago Connections" else space.name
             city_names[str(cell)] = name
 
-    terminal_city_boundaries = {name: info["boundaries"] for name, info in TERMINAL_CITY_DATA.items()}
+    termini_boundaries = {name: info["boundaries"] for name, info in get_termini_boundaries(game).items()}
 
     private_companies = game.get_game_submodule("private_companies")
     private_company_names = private_companies.COMPANIES.keys() if private_companies else []
@@ -116,7 +109,7 @@ def main():
             placed_tiles_colnames=PLACED_TILES_COLUMN_NAMES,
             tile_coords=get_tile_coords(board),
             city_names=city_names,
-            terminal_city_boundaries=terminal_city_boundaries)
+            terminal_city_boundaries=termini_boundaries)
 
 @game_app.route("/calculate", methods=["POST"])
 def calculate():
@@ -327,7 +320,8 @@ def board_tile_info():
     tile = game.tiles.get(tile_id) if tile_id else board.get_space(board.cell(coord))
 
     default_offset = {"x": 0, "y": 0}
-    offset_data = STATION_DATA["tile"] if tile_id else STATION_DATA["board"]
+    station_offsets = get_station_offsets(game)
+    offset_data = station_offsets["tile"] if tile_id else station_offsets["board"]
     offset = offset_data.get(coord, {}).get("offset", default_offset)
     if chicago_neighbor:
         offset = offset[chicago_neighbor]
@@ -348,7 +342,8 @@ def board_private_company_info():
     phase = request.args.get("phase")
 
     default_offset = {"x": 0, "y": 0}
-    offset_data = PRIVATE_COMPANY_DATA[company]
+    private_company_offsets = get_private_offsets(get_game(g.game_name))
+    offset_data = private_company_offsets[company]
     offset = offset_data.get(coord, {}).get("offset", default_offset)
 
     board = get_board(g.game_name)
