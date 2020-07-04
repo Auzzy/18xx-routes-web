@@ -1,5 +1,3 @@
-var chicago = "D6";
-
 function getRailroads() {
     return $("#railroads-table tr[data-railroad]").map((index, element) => $(element).attr("data-railroad")).toArray();
 }
@@ -14,8 +12,7 @@ function getRailroadsAsTable() {
         return railroadsTableData.push([
             $(element).attr("data-railroad"),
             $(element).attr("data-trains"),
-            $(element).attr("data-stations"),
-            $(element).attr("data-neighbor")
+            $(element).attr("data-stations")
         ]);
     });
     return railroadsTableData;
@@ -29,15 +26,17 @@ function setRailroadHomeCity(railroadRow, homeCity) {
     railroadRow.attr("data-home", homeCity);
 }
 
-function addRailroadStation(railroadRow, newStation, newNeighbor) {
+function addRailroadStation(railroadRow, newStation) {
     getRailroadsAsTable().forEach(railroad => {
         if (railroad[0] !== railroadRow.attr("data-railroad")) {
             return;
         }
 
-        var stations = [...new Set(railroad[2].split(",").map(coord => coord.trim()).concat(newStation))];
-        var neighbor = !isEmpty(newNeighbor) && newStation == chicago ? newNeighbor : railroad[3];
-        setRailroadStations(railroadRow, stations, neighbor);
+        var stations = [...new Set(railroad[2]
+            .split(",")
+            .map(coord => coord.trim())
+            .concat(newStation))];
+        setRailroadStations(railroadRow, stations);
     });
 }
 
@@ -47,13 +46,12 @@ function removeRailroadStation(railroadRow, station) {
             return;
         }
 
-        var stations = railroad[2].split(",").filter(coord => coord !== station);
-        var neighbor = station === chicago ? null : railroadRow.attr("data-neighbor");
-        setRailroadStations(railroadRow, stations, neighbor);
+        var stations = railroad[2].split(",").filter(coord => coord.split(':')[0] !== station);
+        setRailroadStations(railroadRow, stations);
     });
 }
 
-function setRailroadStations(railroadRow, stations, neighbor) {
+function setRailroadStations(railroadRow, stations) {
     var stationsDisplay = railroadRow.find("td:nth-child(3) .stations");
     stationsDisplay.empty();
 
@@ -68,7 +66,7 @@ function setRailroadStations(railroadRow, stations, neighbor) {
 
     // Ensure the railroad's home station is always set
     var homeStation = railroadRow.attr("data-home");
-    if (!isEmpty(homeStation) && !stations.includes(homeStation)) {
+    if (!isEmpty(homeStation) && isEmpty(stations.find(value => new RegExp(`${homeStation}`).test(value)))) {
         stations.push(homeStation);
     }
 
@@ -78,9 +76,10 @@ function setRailroadStations(railroadRow, stations, neighbor) {
         .map(railroad => railroad[2]);
     stations = [...new Set(stations.concat(independentRailroads))];
 
-    var stationsHtml = stations.map(cell => {
-        var displayNeighbor = (cell === chicago && neighbor ? ` [${neighbor}]` : "");
-        var displayStation = cityNames[cell] + displayNeighbor + ` (${cell}) `;
+    var stationsHtml = stations.map(station => {
+        [cell, branch] = station.split(':');
+        var displayBranch = (!isEmpty(branch) ? ` [${branch}]` : "");
+        var displayStation = cityNames[cell] + displayBranch + ` (${cell}) `;
         return $("<div></div>").text(displayStation).css("line-height", "1.5em");
     });
 
@@ -88,14 +87,6 @@ function setRailroadStations(railroadRow, stations, neighbor) {
         .attr("data-stations", stations.join(","))
         .html(stationsHtml);
     railroadRow.attr("data-stations", stationsDisplay.attr("data-stations"));
-
-    if (neighbor) {
-        stationsDisplay.attr("data-neighbor", neighbor)
-        railroadRow.attr("data-neighbor", stationsDisplay.attr("data-neighbor"));
-    } else {
-        stationsDisplay.removeAttr("data-neighbor");
-        railroadRow.removeAttr("data-neighbor");
-    }
 }
 
 function setRailroadTrains(railroadRow, trains) {
@@ -160,7 +151,7 @@ function importRailroads(importText) {
     var importRows = importText.trim().split("\n");
     var tableData = importRows
         .map(row => {
-            return row.split(";", 4)
+            return row.split(";", 3)
                 .map(cell => cell.trim().split(",")
                     .map(value => value.trim())
                     .filter(value => !isEmpty(value)));
@@ -171,20 +162,17 @@ function importRailroads(importText) {
     return $.when(
         $.get("{{ url_for('.legal_railroads') }}"),
         $.get("{{ url_for('.trains') }}"),
-        $.get("{{ url_for('.cities') }}"),
-        $.get("{{ url_for('.chicago_stations') }}")
-    ).then((railroadsResponse, trainsResponse, citiesResponse, chicagoNeighborsResponse) => {
+        $.get("{{ url_for('.cities') }}")
+    ).then((railroadsResponse, trainsResponse, citiesResponse) => {
         var homeCities = railroadsResponse[0]["home-cities"];
         var legalRailroads = railroadsResponse[0]["railroads"];
         var legalTrains = trainsResponse[0]["trains"].map(train => train.split("/").map(val => val.trim()).join(" / "));
         var legalStations = citiesResponse[0]["cities"];
-        var legalChicagoNeighbors = chicagoNeighborsResponse[0]["chicago-stations"];
 
-        var chicagoNeighbors = [];
         var importTableData = [];
         tableData.forEach(rowData => {
-            // Ensure rowData always consists of 4 values
-            rowData = rowData.concat(new Array(4 - rowData.length).fill([]));
+            // Ensure rowData always consists of 3 values
+            rowData = rowData.concat(new Array(3 - rowData.length).fill([]));
 
             // normalize train values
             rowData[1] = rowData[1].map(train => train.split("/").map(val => val.trim()).join(" / "));
@@ -193,18 +181,14 @@ function importRailroads(importText) {
             // Add home city data
             rowData.push(homeCities[rowData[0]]);
 
+            // Cannot validate the indicated split city branches. The legal
+            // values depends on the tile on the board and its orientation,
+            // which is not available at this point.
             if (legalRailroads.includes(rowData[0][0])
                     && rowData[1].every(train => legalTrains.includes(train))
-                    && rowData[2].every(station => legalStations.includes(station))
-                    && ((!rowData[2].includes(chicago) && isEmpty(rowData[3][0]))
-                        || (rowData[2].includes(chicago) && legalChicagoNeighbors.includes(rowData[3][0])))
-                    && legalStations.includes(rowData[4])) {
-                if (rowData[1].length <= 4 && (isEmpty(rowData[3]) || !chicagoNeighbors.includes(rowData[3]))) {
-                    if (!isEmpty(rowData[3])) {
-                        chicagoNeighbors.push(rowData[3]);
-                    }
-                    importTableData.push(rowData);
-                }
+                    && rowData[2].every(station => legalStations.includes(station.split(':')[0]))
+                    && legalStations.includes(rowData[3])) {
+                importTableData.push(rowData);
             }
         });
 
@@ -224,8 +208,8 @@ function importRailroads(importText) {
             }
 
             setRailroadTrains(tableRow, rowData[1]);
-            setRailroadStations(tableRow, rowData[2], rowData[3][0]);
-            setRailroadHomeCity(tableRow, rowData[4]);
+            setRailroadStations(tableRow, rowData[2]);
+            setRailroadHomeCity(tableRow, rowData[3]);
         });
 
         // Delete railroads which are in the table but not the import block
@@ -361,33 +345,47 @@ function enableSubmitViaKeyboard(modal, submitButton) {
     });
 }
 
-function chiacgoPopoverListGroup(railroadName, cityItem) {
+function splitCityPopoverListGroup(railroadName, cityItem) {
+    var cityItemCoord = cityItem.attr("data-cell").split(':')[0];
+    var tile = getTileAtCoord(cityItemCoord);
+    var tileId = isEmpty(tile) ? null : tile[1];
+    var orientation = isEmpty(tile) ? null : tile[2];
+
     var popoverListGroup = $("<div></div>")
         .addClass("list-group")
-        .attr("id", "chicago-neighbor-options")
+        .attr("id", "split-city-branch-options")
         .attr("tabindex", "-1");
 
-    var currentChicagoNeighbors = $(`#railroads-table tr[data-neighbor][data-railroad!='${railroadName}']`)
-        .map((index, row) => $(row).attr("data-neighbor"))
+    var currentSplitCityBranches = $(`#railroads-table tr[data-stations*='${cityItemCoord}:'][data-railroad!='${railroadName}']`)
+        .map((index, row) => $(row).attr("data-stations")
+            .split(',')
+            .find(station => station.split(':')[0] ===  cityItemCoord)
+            .split(':')[1])
         .toArray();
 
-    $.get("{{ url_for('.chicago_stations') }}", {stations: JSON.stringify(currentChicagoNeighbors)})
+    var splitCityStationsData = {
+        coord: cityItemCoord,
+        tileId: tileId,
+        orientation: orientation,
+        stations: JSON.stringify(currentSplitCityBranches)
+    };
+    $.get("{{ url_for('.split_city_stations') }}", splitCityStationsData)
         .done(function(result) {
-            result["chicago-stations"].forEach((neighbor, index) => {
+            result["split-city-stations"].forEach((branch, index) => {
                 popoverListGroup
                     .append($("<button></button>")
                         .addClass("btn btn-sm btn-outline-primary")
                         .attr("type", "button")
-                        .attr("data-neighbor", neighbor)
+                        .attr("data-branch", branch)
                         .attr("tabindex", "-1")
-                        .text(neighbor)
+                        .text(branch)
                         .click(function() {
                             if ($(this).hasClass("active")) {
-                                cityItem.removeAttr("data-neighbor");
+                                cityItem.attr("data-cell", cityItemCoord)
                                 cityItem.removeClass("active");
                                 popoverListGroup.children(".active").removeClass("active");
                             } else {
-                                cityItem.attr("data-neighbor", neighbor);
+                                cityItem.attr("data-cell", `${cityItemCoord}:${branch}`)
                                 cityItem.addClass("active");
                                 popoverListGroup.children(".active").removeClass("active");
                                 $(this).addClass("active");
@@ -405,7 +403,7 @@ function chiacgoPopoverListGroup(railroadName, cityItem) {
                                         $(this).prev().focus();
                                     }
                                 } else {
-                                    if (index === result["chicago-stations"].length - 1) {
+                                    if (index === result["split-city-stations"].length - 1) {
                                         cityItem.next().focus();
                                     } else {
                                         $(this).next().focus();
@@ -426,10 +424,10 @@ function populateStationsModal(source) {
     var stationsDisplay = $(`#railroads-table tr[data-railroad='${railroad}'] td:nth-child(3) .stations`);
     var currentStationsAttr = stationsDisplay.attr("data-stations");
     var currentStations = currentStationsAttr !== undefined ? currentStationsAttr.split(",") : new Array();
-    var currentNeighbor = stationsDisplay.attr("data-neighbor");
 
     $.get("{{ url_for('.cities') }}")
         .done(function(result) {
+            var splitCities = result["split-cities"];
             result["cities"].forEach(cell => {
                 var cityItemText = (cityNames.hasOwnProperty(cell) ? cityNames[cell] : cell) + ` (${cell})`;
                 var cityItem = $("<button></button>")
@@ -438,31 +436,35 @@ function populateStationsModal(source) {
                     .attr("data-cell", cell)
                     .text(cityItemText);
 
-                if (cell === chicago) {
-                    var neighborPopoverListGroup = chiacgoPopoverListGroup(railroad, cityItem);
-                    var neighborPopover = cityItem.popover({
+                if (splitCities.includes(cell)) {
+                    var splitCityBranchPopoverListGroup = splitCityPopoverListGroup(railroad, cityItem);
+                    var splitCityBranchPopover = cityItem.popover({
                         placement: "right",
                         html: true,
-                        title: "station neighbor",
-                        content: neighborPopoverListGroup,
+                        title: "split city branch",
+                        content: splitCityBranchPopoverListGroup,
                         container: $("#stations-modal")
                     });
 
                     // When the popover is hidden, clear its effects.
-                    $(neighborPopover).on("hide.bs.popover", function() {
-                        $(neighborPopoverListGroup).find(".active").removeClass("active");
+                    $(splitCityBranchPopover).on("hide.bs.popover", function() {
+                        $(splitCityBranchPopoverListGroup).find(".active").removeClass("active");
                         cityItem.removeAttr("data-neighbor");
                     });
 
                     function updatePopover(event) {
-                        $(neighborPopover).popover('update');
-                        if (currentNeighbor) {
-                            $(neighborPopoverListGroup).find(`[data-neighbor=${currentNeighbor}]`).not(".active").click();
+                        $(splitCityBranchPopover).popover('update');
+                        if (splitCities.includes(cell)) {
+                            [coord, branch] = cityItem.attr("data-cell").split(':');
+                            $(splitCityBranchPopoverListGroup)
+                                .find(`[data-branch=${branch}]`)
+                                .not(".active")
+                                .click();
                         }
                     }
 
                     // If the current neighbor has been set, load the popover with it selected.
-                    $(neighborPopover).on("shown.bs.popover", updatePopover);
+                    $(splitCityBranchPopover).on("shown.bs.popover", updatePopover);
 
                     // Detects the end of the modal's transition and repositions the neighbor popover. Without this, the
                     // popover may appear a bit above the city item due to its creation during the modal's transition.
@@ -479,22 +481,22 @@ function populateStationsModal(source) {
                     // reappears elsewhere on the page when the modal is next opened. It also creates a second copy when
                     // the modal is opened, leading to undefined behavior.
                     $("#stations-modal").on("hide.bs.modal", function() {
-                        $(neighborPopover).popover('dispose');
+                        $(splitCityBranchPopover).popover('dispose');
                     });
 
                     cityItem.click(function() {
                         if ($(this).hasClass("active")) {
-                            $(neighborPopover).popover("hide");
+                            $(splitCityBranchPopover).popover("hide");
                             $(this).removeClass("active");
                         }
                     });
 
-                    // Handle tabbing to the Chicago station popover in the expected order
+                    // Handle tabbing to the split city station popover in the expected order
                     cityItem.keydown(event => {
                         if (event.key === "Tab") {
                             // If the popover isn't viisble, it makes no sense to focus on it (and indeed, it cannot
                             // become focused). So kick out of this and let the normal TAB behavior occur.
-                            if (!$(neighborPopoverListGroup).is(":visible")) {
+                            if (!$(splitCityBranchPopoverListGroup).is(":visible")) {
                                 return;
                             }
 
@@ -502,9 +504,9 @@ function populateStationsModal(source) {
                             event.preventDefault();
 
                             if (event.shiftKey) {
-                                $(neighborPopoverListGroup).children().last().focus();
+                                $(splitCityBranchPopoverListGroup).children().last().focus();
                             } else {
-                                $(neighborPopoverListGroup).children().first().focus();
+                                $(splitCityBranchPopoverListGroup).children().first().focus();
                             }
                         }
                     });
@@ -528,8 +530,8 @@ function populateStationsModal(source) {
                                 $(this).addClass("active");
                             }
 
-                            if ($("#chicago-neighbor-options .active").length === 0) {
-                                $("#chicago-neighbor-options").parents(".popover").popover("hide");
+                            if ($("#split-city-branch-options .active").length === 0) {
+                                $("#split-city-branch-options").parents(".popover").popover("hide");
                             }
                         });
                     }
@@ -537,10 +539,10 @@ function populateStationsModal(source) {
 
                 $("#stations-modal-list").append(cityItem);
 
-                if (currentStations.includes(cell)) {
-                    // Chicago is the only station which will also activate a popover.
-                    if (cell === chicago) {
-                        $(neighborPopover).popover("show");
+                if (currentStations.find(station => station.startsWith(cell))) {
+                    if (splitCities.includes(cell)) {
+                        cityItem.attr("data-cell", currentStations.find(station => station.startsWith(cell)))
+                        $(splitCityBranchPopover).popover("show");
                     } else {
                         cityItem.addClass("active");
                     }
@@ -714,9 +716,8 @@ $("#stations-modal").on("hide.bs.modal", function(event) {
 $("#stations-modal-confirm").click(function() {
     var railroad = $("#stations-modal").attr("data-railroad");
     var stations = $("#stations-modal-list .active").map((index, element) => $(element).attr("data-cell")).toArray();
-    var neighbor = $(`#stations-modal-list .active[data-cell='${chicago}']`).attr("data-neighbor");
 
-    setRailroadStations($(`#railroads-table tr[data-railroad='${railroad}']`), stations, neighbor);
+    setRailroadStations($(`#railroads-table tr[data-railroad='${railroad}']`), stations);
     drawTokens();
 
     $("#stations-modal").modal("hide");
@@ -727,7 +728,7 @@ $("#stations-modal-confirm").click(function() {
 });
 
 // I am unclear why this button propogates its transitionend event to its parent modal. But as it interferes with the
-// behavior of the station modal (specifically, the special handling of Chicago), the event must be slienced.
+// behavior of the station modal (specifically, the special handling of split cities), the event must be slienced.
 $("#stations-modal-confirm").on("webkitTransitionEnd otransitionend oTransitionEnd msTransitionEnd transitionend", event => {
     event.stopPropagation();
 });
