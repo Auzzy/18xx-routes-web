@@ -30,19 +30,12 @@ function getIndependentRailroadsAsTable() {
 }
 
 function getPrivateCompanySpaceInfo(coord, privateCompanyName, callback) {
-    if (coord === chicago) {
-        getTileInfo(coord, undefined, (tileInfo) => {
-            $.get("{{ url_for('.board_private_company_info') }}", {coord: coord, company: privateCompanyName, phase: tileInfo["phase"]})
-                .done(function(response) {
-                    callback(response["info"]);
-                });
-        });
-    } else {
-        $.get("{{ url_for('.board_private_company_info') }}", {coord: coord, company: privateCompanyName})
+    getTileInfo(coord, undefined, (tileInfo) => {
+        $.get("{{ url_for('.board_private_company_info') }}", {coord: coord, company: privateCompanyName, phase: tileInfo["phase"]})
             .done(function(response) {
                 callback(response["info"]);
             });
-    }
+    });
 }
 
 function setPrivateCompanyTokenCoord(privateCompanyRow, tokenCoord) {

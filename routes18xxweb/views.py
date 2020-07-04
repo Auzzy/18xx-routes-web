@@ -6,8 +6,8 @@ from flask import Blueprint, g, jsonify, render_template, request, url_for
 from flask_mail import Message
 from rq import Queue
 
-from routes18xx import (boardstate, find_best_routes, railroads, placedtile, tiles, \
-    trains as trains_mod, LOG as LIB_LOG)
+from routes18xx import (boardstate, boardtile, find_best_routes, railroads, \
+    placedtile, tiles, trains as trains_mod, LOG as LIB_LOG)
 
 from routes18xxweb.routes18xxweb import app, mail
 from routes18xxweb.calculator import redis_conn
@@ -107,21 +107,6 @@ def calculate():
     private_companies_rows = json.loads(request.form.get("private-companies-json"))
     board_state_rows = json.loads(request.form.get("board-state-json"))
     railroad_name = request.form["railroad-name"]
-
-    for row in railroads_state_rows:
-        if row[3]:
-            split_branch_map = json.loads(row[3])
-            stations_strs = []
-            for coord in row[2].split(","):
-                if coord not in split_branch_map:
-                    stations_strs.append(coord)
-                else:
-                    if isinstance(split_branch_map[coord], list):
-                        stations_strs.append(f"{coord}: [{' '.join(split_branch_map[coord])}]")
-                    else:
-                        stations_strs.append(f"{coord}: {split_branch_map[coord]}")
-            row[2] = ','.join(stations_strs)
-            del row[3]
 
     LOG.info("Calculate request.")
     LOG.info(f"Target railroad: {railroad_name}")
@@ -300,9 +285,9 @@ def legal_orientations():
 
 @game_app.route("/board/tile-info")
 def board_tile_info():
-    coord = request.args.get("coord")
-    station_branch = request.args.get("chicagoNeighbor")
-    tile_id = request.args.get("tileId")
+    coord = request.args.get("coord", "").strip()
+    station_branch = request.args.get("branch", "").strip()
+    tile_id = request.args.get("tileId", "").strip()
 
     game = get_game(g.game_name)
     board = get_board(game)
@@ -418,26 +403,49 @@ def cities():
     LOG.info("Cities request.")
 
     board = get_board(g.game_name)
-    all_cities = [str(cell) for cell in sorted(board.cells) if board.get_space(cell) and board.get_space(cell).is_city]
+    # all_cities = [str(cell) for cell in sorted(board.cells) if board.get_space(cell) and board.get_space(cell).is_city]
+    all_cities = []
+    split_cities = []
+    for cell in sorted(board.cells):
+        space = board.get_space(cell)
+        if space and space.is_city:
+            coord = str(cell)
+            all_cities.append(coord)
+            if isinstance(space, (boardtile.SplitCity, placedtile.SplitCity)):
+                split_cities.append(coord)
 
     LOG.info(f"Cities response: {all_cities}")
 
-    return jsonify({"cities": all_cities})
+    return jsonify({
+        "cities": all_cities,
+        "split-cities": split_cities
+    })
 
 @game_app.route("/railroads/legal-split-city-stations")
-def chicago_stations():
+def split_city_stations():
     LOG.info("Legal split city stations request.")
 
     existing_station_coords = {coord for coord in json.loads(request.args.get("stations", "{}")) if coord}
-    # The default values can change once the templates are generalized. And
-    # they'll need to before implementing another game with split cities.
-    coord = request.args.get("coord", "D6")
-    tile_id = request.args.get("tileId", 300)
-    orientation = request.args.get("orientation", 0)
 
+    split_city_station_coords = _get_split_city_stations(
+        # The default values can change once the templates are generalized. And
+        # they'll need to before implementing another game with split cities.
+        request.args["coord"],
+        request.args.get("tileId"),
+        request.args.get("orientation")
+    )
+
+    legal_stations = sorted(split_city_station_coords - existing_station_coords)
+
+    LOG.info(f"Legal split city stations response: {legal_stations}")
+
+    return jsonify({"split-city-stations": legal_stations})
+
+def _get_split_city_stations(coord, tile_id, orientation):
     game = get_game(g.game_name)
     board = get_board(game)
     cell = board.cell(coord)
+
     if tile_id and orientation:
         split_city_space = placedtile.SplitCity.place(cell, game.tiles[tile_id], orientation)
     else:
@@ -452,11 +460,7 @@ def chicago_stations():
         else:
             split_city_station_coords.add(str(sorted(branch)[0]))
 
-    legal_stations = sorted(split_city_station_coords - existing_station_coords)
-
-    LOG.info(f"Legal split city stations response: {legal_stations}")
-
-    return jsonify({"chicago-stations": legal_stations})
+    return split_city_station_coords
 
 @game_app.route("/railroads/legal-token-coords")
 def legal_token_coords():
