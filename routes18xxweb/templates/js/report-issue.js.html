@@ -27,7 +27,7 @@ function gatherCalcIssueData() {
         targetRailroad: $("#calculate-dropdown").attr("data-selected"),
         jobId: $("#calculate-tab-content").attr("data-job-id"),
         resultHtml: $("#calculate-result").html(),
-        hideCities: getLocalStorage("hideCityPaths")
+        hideStops: getLocalStorage("hideStopPaths")
     });
     return issueData;
 }

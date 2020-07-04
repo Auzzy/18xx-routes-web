@@ -50,14 +50,14 @@ function getTrains(row) {
     return trainCells.length > 0 ? trainCells.join(",") : null
 }
 
-function toggleCities(self) {
-    $("#calculate-result .cityPath").toggle();
-    var hidden = $("#calculate-result .cityPath").css("display") === "none";
-    setLocalStorage("hideCityPaths", hidden);
+function toggleStops(self) {
+    $("#calculate-result .stopPath").toggle();
+    var hidden = $("#calculate-result .stopPath").css("display") === "none";
+    setLocalStorage("hideStopPaths", hidden);
     if (hidden) {
-        $(self).text("Show cities");
+        $(self).text("Show stops");
     } else {
-        $(self).text("Hide cities");
+        $(self).text("Hide stops");
     }
 }
 
@@ -78,14 +78,14 @@ function requestAndDisplayRoutes(jobId) {
                                 .text("No valid routes were found for the given configuration and railroad.")
                                 .appendTo($("#route-list"));
                         } else {
-                            var hideCityPaths = getLocalStorage("hideCityPaths");
+                            var hideStopPaths = getLocalStorage("hideStopPaths");
 
                             $("#calculate-result")
                                 .prepend($("<a></a>")
-                                    .text(hideCityPaths ? "Show cities": "Hide cities")
+                                    .text(hideStopPaths ? "Show stops": "Hide stops")
                                     .attr("href", "#")
                                     .click(function() {
-                                        toggleCities(this, false);
+                                        toggleStops(this, false);
                                     }));
 
                             for (trainInfo in resultJson["routes"]) {
@@ -95,21 +95,21 @@ function requestAndDisplayRoutes(jobId) {
                                         .css("font-weight", "bold")
                                         .text(trainRouteInfo[0] + ": " + trainRouteInfo[1].join(", ") + " = " + trainRouteInfo[2]));
 
-                                var cityPath = $("<div></div>").addClass("cityPath");
-                                for (cityValueIndex in trainRouteInfo[3]) {
-                                    var cityValue = trainRouteInfo[3][cityValueIndex];
-                                    cityPath
+                                var stopPath = $("<div></div>").addClass("stopPath");
+                                for (stopValueIndex in trainRouteInfo[3]) {
+                                    var stopValue = trainRouteInfo[3][stopValueIndex];
+                                    stopPath
                                         .append($("<div></div>")
-                                            .text("-> " + cityValue[0] + " [" + cityValue[1] + "]"));
+                                            .text("-> " + stopValue[0] + " [" + stopValue[1] + "]"));
                                 }
 
-                                if (hideCityPaths) {
-                                    cityPath.hide();
+                                if (hideStopPaths) {
+                                    stopPath.hide();
                                 }
 
                                 $("#route-list")
                                     .append(routeDisplay)
-                                    .append(cityPath);
+                                    .append(stopPath);
                             }
 
                             var routesTotal = resultJson["routes"]
