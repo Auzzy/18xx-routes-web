@@ -328,44 +328,57 @@ function drawStationOnMap(coord, branch, stationCount, railroadName) {
     stationImage.width = tileSize.width * 0.295;
     stationImage.height = tileSize.height * 0.255;
 
-    getTileInfo(coord, branch, (tileInfo) => {
+    getTileInfo(coord, (tileInfo) => {
         // Draws the station after it's loaded...
         $(stationImage).one("load", function() {
-            drawStation(stationContext, stationImage, tileCenter, stationCount, tileInfo, stationCanvas);
+            drawStation(stationContext, stationImage, tileCenter, stationCount, tileInfo, branch, stationCanvas);
         });
 
         // ...as well as if it was already loaded
-        drawStation(stationContext, stationImage, tileCenter, stationCount, tileInfo, stationCanvas);
+        drawStation(stationContext, stationImage, tileCenter, stationCount, tileInfo, branch, stationCanvas);
     });
 }
 
-function drawStation(context, stationImage, tileCenter, stationCount, tileInfo, mapImg) {
+function drawStation(context, stationImage, tileCenter, stationCount, tileInfo, branch, mapImg) {
     var capacity = tileInfo["capacity"];
     var orientation = tileInfo["orientation"];
     var offset = tileInfo["offset"];
+    var isSplitCity = tileInfo["is-split-city"];
 
     var x = 0;
     var y = 0;
-    if (capacity === 1 || capacity === 4) {
-        // Due to some magic in the tileInfo object, Chiacgo is handled the same as a capcaity 1 tile
+
+    if (isSplitCity) {
+        orientation = orientation || 0;
+
+        // Use the offset to locate the stations on the tile/space, then
+        // reflect the stations around the tile orientation * 60 degrees.
+        var xOffset = -stationImage.width * offset[branch]["x"];
+        var yOffset = -stationImage.height * offset[branch]["y"];
+
+        var r = Math.sqrt(Math.pow(xOffset, 2) + Math.pow(yOffset, 2));
+        var angle = Math.atan(yOffset / xOffset);
+        // Adjustment for arctan
+        if (xOffset < 0) {
+            angle += Math.PI;
+        }
+        angle += orientation * Math.PI / 3;
+
+        x = tileCenter.x - (stationImage.width / 2.0) - r * Math.cos(angle);
+        y = tileCenter.y - (stationImage.height / 2.0) - r * Math.sin(angle);
+    } else if (capacity === 1) {
         x = tileCenter.x - (stationImage.width / 2.0) + stationImage.width * offset["x"];
         y = tileCenter.y - (stationImage.height / 2.0) + stationImage.height * offset["y"];
-    } else if (capacity === 2) {
-        orientation = isEmpty(orientation) ? -0.5 : orientation;
-        var angle = Math.PI / 6 + orientation * Math.PI / 3 + stationCount * Math.PI;
-        var xOffset = -(stationImage.width / 2 + 3) * Math.cos(angle) - -0 * Math.sin(angle);
-        var yOffset = -(stationImage.width / 2 + 3) * Math.sin(angle) + -0 * Math.cos(angle);
+    } else {
+        var stationAdjustment = capacity === 2 ? Math.PI : 2 * Math.PI / 3;
 
-        x = tileCenter.x - (stationImage.width / 2) + xOffset;
-        y = tileCenter.y - (stationImage.height / 2) + yOffset;
-    } else if (capacity === 3) {
-        orientation = isEmpty(orientation) ? -0.5 : orientation;
-        var angle = Math.PI / 3 + orientation * Math.PI / 3 + stationCount * 2 * Math.PI / 3;
-        var xOffset = -(stationImage.width / 2 + 5) * Math.cos(angle) - -0 * Math.sin(angle);
-        var yOffset = -(stationImage.width / 2 + 5) * Math.sin(angle) + -0 * Math.cos(angle);
+        orientation = orientation || 0;
+        var angle = 2 * Math.PI / 3 + (offset["rotation"] || 0)  + orientation * Math.PI / 3 + stationCount * stationAdjustment;
+        var xOffset = (3 * stationImage.width / 4.0) * Math.cos(angle);
+        var yOffset = (3 * stationImage.height / 4.0) * Math.sin(angle);
 
-        x = tileCenter.x - (stationImage.width / 2) + xOffset;
-        y = tileCenter.y - (stationImage.height / 2) + yOffset;
+        x = tileCenter.x - (stationImage.width / 2.0) + xOffset;
+        y = tileCenter.y - (stationImage.height / 2.0) + yOffset;
     }
 
     context.drawImage(stationImage, x, y, stationImage.width, stationImage.height);
