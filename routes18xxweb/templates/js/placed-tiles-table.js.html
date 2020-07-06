@@ -74,10 +74,11 @@ function removeTile(coord) {
     updateLocalStoragePlacedTiles();
 }
 
-function getTileInfo(coord, branch, callback) {
+function getTileInfo(coord, callback) {
     var tile = tilesTable.find(row => row[0] === coord);
     var tileId = isEmpty(tile) ? null : tile[1];
-    $.get("{{ url_for('.board_tile_info') }}", {coord: coord, branch: branch, tileId: tileId})
+    var orientation = isEmpty(tile) ? null : tile[2];
+    $.get("{{ url_for('.board_space_info') }}", {coord: coord, orientation: orientation, tileId: tileId})
         .done(function(response) {
             var info = response["info"];
             info["orientation"] = isEmpty(tile) ? null : tile[2];

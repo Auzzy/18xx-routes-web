@@ -1,4 +1,5 @@
 import collections
+import math
 import json
 import os
 
@@ -283,28 +284,53 @@ def legal_orientations():
 
     return jsonify({"legal-orientations": list(sorted(orientations)) if orientations is not None else orientations})
 
-@game_app.route("/board/tile-info")
-def board_tile_info():
-    coord = request.args.get("coord", "").strip()
-    station_branch = request.args.get("branch", "").strip()
+def _get_station_offset(offset_data, key):
+    default_offset = {"x": 0, "y": 0, "rotation": 0}
+    space_offset_data = offset_data.get(key, {})
+
+    if isinstance(space_offset_data, str):
+        return _get_station_offset(offset_data, space_offset_data)
+    else:
+        return space_offset_data.get("offset", default_offset).copy()
+
+@game_app.route("/board/space-info")
+def board_space_info():
+    coord = request.args["coord"].strip()
     tile_id = request.args.get("tileId", "").strip()
+    orientation = request.args.get("orientation", "").strip()
 
     game = get_game(g.game_name)
     board = get_board(game)
-    tile = game.tiles.get(tile_id) if tile_id else board.get_space(board.cell(coord))
+    cell = board.cell(coord)
 
-    default_offset = {"x": 0, "y": 0}
     station_offsets = get_station_offsets(game)
-    offset_data = station_offsets["tile"] if tile_id else station_offsets["board"]
-    offset = offset_data.get(coord, {}).get("offset", default_offset)
-    if station_branch:
-        offset = offset[station_branch]
+    if tile_id and orientation:
+        offset_data = station_offsets.get("tile", {})
+        offset = _get_station_offset(offset_data, tile_id)
+
+        space = placedtile.PlacedTile.place(cell, game.tiles[tile_id], orientation, board.get_space(cell))
+        if isinstance(space, placedtile.SplitCity):
+            # In the offset file, branches are indicated by side. To translate
+            # into cells, add the orientation, and modulo by 6 to retrieve its
+            # neighbor given the orientation.
+            offset = {str(cell.neighbors[(int(exit) + int(orientation)) % 6]): offsetCoords for exit, offsetCoords in offset.items()}
+
+        if "rotation" in offset:
+            offset["rotation"] = math.radians(offset["rotation"])
+    else:
+        offset_data = station_offsets.get("board", {})
+        offset = _get_station_offset(offset_data, coord)
+        space = board.get_space(cell)
+
+        if "rotation" in offset:
+            offset["rotation"] = math.radians(offset["rotation"])
 
     info = {
-        # Stop-gap for the time being. I need to figure out what to actually do with capacity keys at some point.
-        "capacity": sum(tile.capacity.values()) if isinstance(tile.capacity, dict) else tile.capacity,
+        # Stop-gap. I need to figure out what to actually do with capacity keys.
+        "capacity": sum(space.capacity.values()) if isinstance(space.capacity, dict) else space.capacity,
         "offset": offset,
-        "phase": tile.upgrade_level
+        "phase": space.upgrade_level,
+        "is-split-city": isinstance(space, (boardtile.SplitCity, placedtile.SplitCity))
     }
 
     return jsonify({"info": info})

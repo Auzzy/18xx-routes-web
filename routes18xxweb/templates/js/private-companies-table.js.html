@@ -30,7 +30,7 @@ function getIndependentRailroadsAsTable() {
 }
 
 function getPrivateCompanySpaceInfo(coord, privateCompanyName, callback) {
-    getTileInfo(coord, undefined, (tileInfo) => {
+    getTileInfo(coord, (tileInfo) => {
         $.get("{{ url_for('.board_private_company_info') }}", {coord: coord, company: privateCompanyName, phase: tileInfo["phase"]})
             .done(function(response) {
                 callback(response["info"]);
