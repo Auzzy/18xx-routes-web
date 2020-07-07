@@ -99,7 +99,7 @@ def main():
             placed_tiles_colnames=PLACED_TILES_COLUMN_NAMES,
             tile_coords=get_tile_coords(board),
             city_names=stop_names,
-            terminal_city_boundaries=termini_boundaries)
+            termini_boundaries=termini_boundaries)
 
 @game_app.route("/calculate", methods=["POST"])
 def calculate():
@@ -325,9 +325,14 @@ def board_space_info():
         if "rotation" in offset:
             offset["rotation"] = math.radians(offset["rotation"])
 
+    if hasattr(space, "capacity"):
+        capacity = sum(space.capacity.values()) if isinstance(space.capacity, dict) else space.capacity
+    else:
+        capacity = 0
+
     info = {
         # Stop-gap. I need to figure out what to actually do with capacity keys.
-        "capacity": sum(space.capacity.values()) if isinstance(space.capacity, dict) else space.capacity,
+        "capacity": capacity,
         "offset": offset,
         "phase": space.upgrade_level,
         "is-split-city": isinstance(space, (boardtile.SplitCity, placedtile.SplitCity))
