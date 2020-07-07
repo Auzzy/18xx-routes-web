@@ -14,16 +14,14 @@ function getTilesHeaders() {
 }
 
 function updateLocalStoragePlacedTiles() {
-    if (typeof(Storage) !== "undefined") {
-        localStorage.placedTilesTable = JSON.stringify(getTilesAsTable().filter(row => !row.every(isEmpty)).map(row => row.map(value => value.toString())));
-    }
+    setLocalStorage("placedTilesTable",
+            getTilesAsTable().filter(row => !row.every(isEmpty)).map(row => row.map(value => value.toString())));
 }
 
 function loadFromLocalStoragePlacedTiles() {
-    if (typeof(Storage) !== "undefined") {
-        if (localStorage.placedTilesTable !== undefined) {
-            return importTiles(prepareTilesForExport(JSON.parse(localStorage.placedTilesTable)));
-        }
+    var rawPlacedTilesTable = getLocalStorage("placedTilesTable");
+    if (rawPlacedTilesTable !== undefined) {
+        return importTiles(prepareTilesForExport(rawPlacedTilesTable));
     }
     return Promise.resolve();
 }

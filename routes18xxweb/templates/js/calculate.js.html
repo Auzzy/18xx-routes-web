@@ -53,7 +53,7 @@ function getTrains(row) {
 function toggleCities(self) {
     $("#calculate-result .cityPath").toggle();
     var hidden = $("#calculate-result .cityPath").css("display") === "none";
-    localStorage.hideCityPaths = hidden;
+    setLocalStorage("hideCityPaths", hidden);
     if (hidden) {
         $(self).text("Show cities");
     } else {
@@ -78,7 +78,7 @@ function requestAndDisplayRoutes(jobId) {
                                 .text("No valid routes were found for the given configuration and railroad.")
                                 .appendTo($("#route-list"));
                         } else {
-                            var hideCityPaths = localStorage.hideCityPaths === "true";
+                            var hideCityPaths = getLocalStorage("hideCityPaths");
 
                             $("#calculate-result")
                                 .prepend($("<a></a>")

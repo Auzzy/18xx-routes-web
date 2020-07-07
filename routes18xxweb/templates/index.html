@@ -149,6 +149,22 @@ function isEmpty(value) {
     return value === '' || value === null || value === undefined;
 }
 
+function getLocalStorage(key) {
+    var gameStorage = localStorage.getItem("{{ g.game_name }}");
+    if (gameStorage === null) {
+        return undefined;
+    } else {
+        return JSON.parse(gameStorage)[key];
+    }
+}
+
+function setLocalStorage(key, value) {
+    var gameStorage = JSON.parse(localStorage.getItem("{{ g.game_name }}") || "{}");
+
+    gameStorage[key] = value;
+    return localStorage.setItem("{{ g.game_name }}", JSON.stringify(gameStorage));
+}
+
 function canDisable(handler) {
     return function (event) {
         if ($(event.delegateTarget).attr("data-disabled") === "true") {

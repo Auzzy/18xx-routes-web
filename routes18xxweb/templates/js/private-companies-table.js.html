@@ -115,16 +115,13 @@ function setPrivateCompanyOwner(privateCompanyRow, owner) {
 }
 
 function updateLocalStoragePrivateCompanies() {
-    if (typeof(Storage) !== "undefined") {
-        localStorage.privateCompaniesTable = JSON.stringify(getPrivateCompaniesAsTable());
-    }
+    setLocalStorage("privateCompaniesTable", getPrivateCompaniesAsTable());
 }
 
 function loadFromLocalStoragePrivateCompanies() {
-    if (typeof(Storage) !== "undefined") {
-        if (localStorage.privateCompaniesTable !== undefined) {
-            return importPrivateCompanies(preparePrivateCompaniesForExport(JSON.parse(localStorage.privateCompaniesTable)));
-        }
+    var rawPrivateCompaniesTable = getLocalStorage("privateCompaniesTable");
+    if (rawPrivateCompaniesTable !== undefined) {
+        return importPrivateCompanies(preparePrivateCompaniesForExport(rawPrivateCompaniesTable));
     }
     return Promise.resolve();
 }
