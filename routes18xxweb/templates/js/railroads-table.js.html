@@ -144,15 +144,14 @@ function setRailroadName(railroadRow, railroad) {
 
 function updateLocalStorageRailroads() {
     if (typeof(Storage) !== "undefined") {
-        localStorage.railroadsTable = JSON.stringify(getRailroadsAsTable());
+        setLocalStorage("railroadsTable", getRailroadsAsTable());
     }
 }
 
 function loadFromLocalStorageRailroads() {
-    if (typeof(Storage) !== "undefined") {
-        if (localStorage.railroadsTable !== undefined) {
-            return importRailroads(prepareRailroadsForExport(JSON.parse(localStorage.railroadsTable)));
-        }
+    var rawRailroadsTable = getLocalStorage("railroadsTable");
+    if (rawRailroadsTable !== undefined) {
+        return importRailroads(prepareRailroadsForExport(rawRailroadsTable));
     }
     return Promise.resolve();
 }

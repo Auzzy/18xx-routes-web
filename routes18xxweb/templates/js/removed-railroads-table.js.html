@@ -43,16 +43,13 @@ function addRemovedRailroad(railroadName, homeCity) {
 }
 
 function updateLocalStorageRemovedRailroads() {
-    if (typeof(Storage) !== "undefined") {
-        localStorage.removedRailroadsTable = JSON.stringify(getRemovedRailroads());
-    }
+    setLocalStorage("removedRailroadsTable", getRemovedRailroads());
 }
 
 function loadFromLocalStorageRemovedRailroads() {
-    if (typeof(Storage) !== "undefined") {
-        if (localStorage.removedRailroadsTable !== undefined) {
-            return importRemovedRailroads(prepareRemovedRailroadsForExport(JSON.parse(localStorage.removedRailroadsTable)));
-        }
+    var rawRemovedRailroadsTable = getLocalStorage("removedRailroadsTable");
+    if (rawRemovedRailroadsTable !== undefined) {
+        return importRemovedRailroads(prepareRemovedRailroadsForExport(rawRemovedRailroadsTable));
     }
     return Promise.resolve();
 }
