@@ -2,7 +2,7 @@
 
 {% block body %}
 <div>
-    <span style="display: inline-block; font-size: 2rem; font-family: inherit; font-weight: 500;">1846 Route Calculator</span>
+    <span style="display: inline-block; font-size: 2rem; font-family: inherit; font-weight: 500;">{{ g.game_name }} Route Calculator</span>
     <span>&nbsp;</span>
     <button type="button" class="btn btn-sm btn-outline-info align-middle align-text-bottom" data-toggle="modal" data-target="#aboutModal">About</button>
     <button id="general-report-issue-open" class="float-right btn btn-outline-danger" data-toggle="modal" data-target="#general-report-issue-modal" style="margin-right: 25px;">Report Issue</button>
@@ -13,7 +13,7 @@
 </div>
 <div id="app-input-area" style="height: 100%;">
     <div id="map-section" style="float: left; max-width: 60%">
-        <img tabindex="0" id="placed-tiles-board" src="{{ url_for('static', filename='images/1846-Map.png') }}" />
+        <img tabindex="0" id="placed-tiles-board" src="{{ url_for('static', filename='images/' ~ g.game_name ~ '-Map.png') }}" />
         <canvas id="placed-tiles-board-canvas"></canvas>
         <canvas id="stations-canvas"></canvas>
         <canvas id="routes-canvas"></canvas>
