@@ -9,7 +9,7 @@ var routeColors = [
     "rgba(255, 178, 127, 1)",  // light tangelo
     "rgba(255, 0, 0, 0.8)"     // red
 ];
-var terminalCityBoundaries = {{ terminal_city_boundaries | safe }};
+var terminiBoundaries = {{ termini_boundaries | safe }};
 
 function repositionCanvases() {
     var mapImage = $("#placed-tiles-board").get(0);
@@ -977,15 +977,15 @@ $("#tile-selector-tiles-content").scroll(function(event) {
     keepOnScreen($("#tile-selector-tiles-content"), $("#tile-orientations"));
 });
 
-function getClickableTerminalCityCoord(pointOnImage) {
+function getClickableTerminusCoord(pointOnImage) {
     var mapImage = $("#tile-focus-canvas").get(0);
 
-    var terminalContext = mapImage.getContext("2d");
-    terminalContext.strokeStyle = "rgba(0, 255, 255, 0.5)";
-    terminalContext.lineWidth = 3;
+    var terminusContext = mapImage.getContext("2d");
+    terminusContext.strokeStyle = "rgba(0, 255, 255, 0.5)";
+    terminusContext.lineWidth = 3;
 
-    for (var name in terminalCityBoundaries) {
-        var boundaryPoints = terminalCityBoundaries[name].map(data => {
+    for (var name in terminiBoundaries) {
+        var boundaryPoints = terminiBoundaries[name].map(data => {
             return {x: data.x * mapImage.width, y: data.y * mapImage.height}
         });
 
@@ -998,8 +998,8 @@ function getClickableTerminalCityCoord(pointOnImage) {
 }
 
 function openTileSelectionModal(rowAndCol, pointOnImage) {
-    var clickableTerminalCityCoord = getClickableTerminalCityCoord(pointOnImage);
-    if (clickableTerminalCityCoord !== undefined) {
+    var clickableTerminusCoord = getClickableTerminusCoord(pointOnImage);
+    if (clickableTerminusCoord !== undefined) {
         getPhase()
             .done(phase => {
                 if (phase >= 4) {
@@ -1007,8 +1007,8 @@ function openTileSelectionModal(rowAndCol, pointOnImage) {
                 }
 
                 clearAllHighlights();
-                setTileSelectorModalHeader(clickableTerminalCityCoord);
-                populatePrivateCompanies(clickableTerminalCityCoord);
+                setTileSelectorModalHeader(clickableTerminusCoord);
+                populatePrivateCompanies(clickableTerminusCoord);
         
                 $("#tile-selector-tiles").hide();
                 $("#tile-selector-stations").hide();
