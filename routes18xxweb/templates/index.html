@@ -337,6 +337,8 @@ $("#global-import-export-modal").on("show.bs.modal", function() {
 
 {% include "js/report-issue.js.html" %}
 
+{% include ["js/hooks/" ~ g.game_name ~ "/private-companies-hooks.js.html", "js/hooks/default-private-companies-hooks.js.html"] %}
+
 loadGameState();
 
 {% endblock %}

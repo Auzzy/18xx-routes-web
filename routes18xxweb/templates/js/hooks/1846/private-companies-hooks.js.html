@@ -1,0 +1,67 @@
+{% set indRailroadNames = ["Big 4", "Michigan Southern"] %}
+var indRailroadNames = {{ indRailroadNames|safe }};
+
+function setPrivateCompanyOwnerHook(privateCompanyRow, owner) {
+    var companyName = privateCompanyRow.attr("data-name");
+    if (indRailroadNames.includes(companyName)) {
+        setIndependentRailroadOwner(privateCompanyRow, companyName, owner);
+    }
+}
+
+function drawPrivateCompanyTokensHook(phase, company, stationCountByCoord) {
+    if (indRailroadNames.includes(company[0])) {
+        if (phase < 3) {
+            if (isEmpty(company[1])) {
+                var coord = company[2].trim();
+                if (!(coord in stationCountByCoord)) {
+                    stationCountByCoord[coord] = 0;
+                }
+
+                drawStationOnMap(coord, null, stationCountByCoord[coord], company[0]);
+                stationCountByCoord[coord]++;
+            }
+        }
+    } else {
+        if (phase < 4) {
+            if (!isEmpty(company[1]) && !isEmpty(company[2])) {
+                drawPrivateCompanyOnMap(company[2].trim(), company[0]);
+            }
+        }
+    }
+}
+
+function getRailroadsAtCoordHook(cell, phase) {
+    if (phase < 3) {
+        return getIndependentRailroadsAsTable()
+            .filter(railroad => isEmpty(railroad[1]));
+    } else {
+        return [];
+    }
+}
+
+function getRailroadFixedStationsHook(railroadName) {
+    return getIndependentRailroadsAsTable()
+        // If the railroad is either an independent railroad, or the owner of
+        // an independent railroad, that station's location should be fixed.
+        .filter(railroad => [railroad[0], railroad[1]].includes(railroadName))
+        .map(railroad => railroad[2]);
+}
+
+
+function getIndependentRailroadsAsTable() {
+    return getPrivateCompaniesAsTable().filter(company => indRailroadNames.includes(company[0]));
+}
+
+function setIndependentRailroadOwner(privateCompanyRow, indRailroadName, owner) {
+    var attrName = indRailroadName === "Big 4" ? "data-big-4" : "data-michigan-southern";
+    var previousOwnerRow = $(`#railroads-table tr[${attrName}]`);
+    removeRailroadStation(previousOwnerRow, previousOwnerRow.attr(attrName));
+    previousOwnerRow.removeAttr(attrName);
+
+    if (!isEmpty(owner)) {
+        var railroadRow = $(`#railroads-table tr[data-railroad='${owner}']`);
+        var coord = privateCompanyRow.attr("data-coord");
+        addRailroadStation(railroadRow, coord);
+        railroadRow.attr(attrName, coord);
+    }
+}
