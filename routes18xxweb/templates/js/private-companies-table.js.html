@@ -1,6 +1,3 @@
-{% set indRailroadNames = ["Big 4", "Michigan Southern"] %}
-var indRailroadNames = {{ indRailroadNames|safe }};
-
 function getPrivateCompaniesHeaders() {
     return $("#private-companies-table th").map((index, header) => $(header).text().toLowerCase()).toArray();
 }
@@ -23,10 +20,6 @@ function getPrivateCompaniesAsTable() {
 
 function getPrivateCompanyRow(companyName) {
     return $(`#private-companies-table tr[data-name='${companyName}']`);
-}
-
-function getIndependentRailroadsAsTable() {
-    return getPrivateCompaniesAsTable().filter(company => indRailroadNames.includes(company[0]));
 }
 
 function getPrivateCompanySpaceInfo(coord, privateCompanyName, callback) {
@@ -64,26 +57,10 @@ function setPrivateCompanyTokenCoord(privateCompanyRow, tokenCoord) {
     privateCompanyRow.attr("data-coord", tokenDisplay.attr("data-coord"));
 }
 
-function setIndependentRailroadOwner(privateCompanyRow, indRailroadName, owner) {
-    var attrName = indRailroadName === "Big 4" ? "data-big-4" : "data-michigan-southern";
-    var previousOwnerRow = $(`#railroads-table tr[${attrName}]`);
-    removeRailroadStation(previousOwnerRow, previousOwnerRow.attr(attrName));
-    previousOwnerRow.removeAttr(attrName);
-
-    if (!isEmpty(owner)) {
-        var railroadRow = $(`#railroads-table tr[data-railroad='${owner}']`);
-        var coord = privateCompanyRow.attr("data-coord");
-        addRailroadStation(railroadRow, coord);
-        railroadRow.attr(attrName, coord);
-    }
-}
-
 function setPrivateCompanyOwner(privateCompanyRow, owner) {
-    var companyName = privateCompanyRow.attr("data-name");
-    if (indRailroadNames.includes(companyName)) {
-        setIndependentRailroadOwner(privateCompanyRow, companyName, owner);
-    }
+    setPrivateCompanyOwnerHook(privateCompanyRow, owner);
 
+    var companyName = privateCompanyRow.attr("data-name");
     var ownerDisplay = privateCompanyRow.find(".company-owner .display");
     ownerDisplay.empty();
 
@@ -92,7 +69,7 @@ function setPrivateCompanyOwner(privateCompanyRow, owner) {
         ownerDisplay.removeAttr("data-owner");
         privateCompanyRow.removeAttr("data-owner");
         privateCompanyRow.find(".company-token button").hide();
-        return;
+        return Promise.resolve();
     }
 
     ownerDisplay
@@ -100,11 +77,23 @@ function setPrivateCompanyOwner(privateCompanyRow, owner) {
         .html(owner);
     privateCompanyRow.attr("data-owner", ownerDisplay.attr("data-owner"));
 
-    // This is fine, because setPrivateCompanyTokenCoord can't change independent railroad coords.
-    setPrivateCompanyTokenCoord(privateCompanyRow, null);
-    if (["Steamboat Company", "Meat Packing Company"].includes(companyName)) {
-        privateCompanyRow.find(".company-token button").show();
-    }
+    return new Promise((resolve, reject) => {
+        $.get("{{ url_for('.legal_token_coords') }}")
+            .done(function(result) {
+                var coords = result["coords"][companyName];
+                if (coords.length > 1 || coords.length === 0) {
+                    setPrivateCompanyTokenCoord(privateCompanyRow, null);
+                    if (coords.length > 1) {
+                        privateCompanyRow.find(".company-token button").show();
+                    }
+                } else {
+                    setPrivateCompanyTokenCoord(privateCompanyRow, coords[0]);
+                    drawTokens();
+                }
+
+                resolve();
+            });
+    });
 }
 
 function updateLocalStoragePrivateCompanies() {
@@ -133,10 +122,10 @@ async function importPrivateCompanies(importText) {
 
         return $.when(
                 $.get("{{ url_for('.legal_railroads') }}"),
-                $.get("{{ url_for('.legal_token_coords') }}", {companyName: rowData[0]})
+                $.get("{{ url_for('.legal_token_coords') }}")
             ).done(function(legalRailroadsResponse, legalTokenCoordsResponse) {
                 if (legalRailroadsResponse[0]["railroads"].includes(rowData[1])
-                        && (isEmpty(rowData[2]) || legalTokenCoordsResponse[0]["coords"].includes(rowData[2]))) {
+                        && (isEmpty(rowData[2]) || legalTokenCoordsResponse[0]["coords"][rowData[0]].includes(rowData[2]))) {
                     importTableData.push(rowData);
                 }
             });
@@ -146,10 +135,12 @@ async function importPrivateCompanies(importText) {
         var companyName = rowData[0];
         var tableRow = $(`#private-companies-table tr[data-name='${companyName}']`);
 
-        setPrivateCompanyOwner(tableRow, rowData[1]);
-        if (!isEmpty(rowData[2])) {
-            setPrivateCompanyTokenCoord(tableRow, rowData[2]);
-        }
+        setPrivateCompanyOwner(tableRow, rowData[1])
+            .then(() => {
+                if (!isEmpty(rowData[2])) {
+                    setPrivateCompanyTokenCoord(tableRow, rowData[2]);
+                }
+            });
     });
 
     drawTokens();
@@ -272,7 +263,7 @@ function populatePrivateCompanyTokenCoordDropdown(sourceRow) {
     var companyName = sourceRow.attr("data-name");
     $.get("{{ url_for('.legal_token_coords') }}", {companyName: companyName})
         .done(function(result) {
-            result["coords"].forEach(tokenCoord => {
+            result["coords"][companyName].forEach(tokenCoord => {
                 var itemHtml = `${cityNames[tokenCoord]} (${tokenCoord})`;
                 dropdownMenu
                     .append($("<a></a>")
@@ -311,10 +302,6 @@ function populatePrivateCompanyOwnerDropdown(sourceRow) {
 
                         setPrivateCompanyOwner(sourceRow, $(this).attr("data-owner"));
 
-                        if (indRailroadNames.includes(sourceRow.attr("data-name")) || !isEmpty(oldCoord)) {
-                            drawTokens();
-                        }
-
                         sourceRow.find(".company-owner button").focus();
 
                         updateLocalStoragePrivateCompanies();
@@ -331,7 +318,7 @@ function toggleEnablePrivateCompanies(enable) {
 privateCompanyHeaders();
 {%- for name in private_company_rownames %}
 privateCompanyNewRow("{{ name }}");
-{% if name in indRailroadNames -%}
+{% if name in private_company_default_token_coords -%}
 setPrivateCompanyTokenCoord($("#private-companies-table tr[data-name='{{ name }}']"), null);
 {%- endif -%}
 {% endfor %}

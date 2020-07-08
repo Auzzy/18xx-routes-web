@@ -22,6 +22,20 @@ function getRailroadRow(railroadName) {
     return $(`#railroads-table tr[data-railroad='${railroadName}']`);
 }
 
+function getRailroadsAtCoord(cell, phase) {
+    return getRailroadsAsTable()
+        .concat(getRailroadsAtCoordHook(cell, phase))
+        .filter(railroad => {
+            return !isEmpty(railroad[2]) &&
+                railroad[2].split(",").find(stationCoord => cell === stationCoord.trim().split(':')[0]) !== undefined;
+        });
+}
+
+function getRailroadFixedStations(railroadName) {
+    return [getRailroadRow(railroadName).attr("data-home")]
+        .concat(getRailroadFixedStationsHook(railroadName));
+}
+
 function setRailroadHomeCity(railroadRow, homeCity) {
     railroadRow.attr("data-home", homeCity);
 }
@@ -64,17 +78,8 @@ function setRailroadStations(railroadRow, stations) {
         return;
     }
 
-    // Ensure the railroad's home station is always set
-    var homeStation = railroadRow.attr("data-home");
-    if (!isEmpty(homeStation) && isEmpty(stations.find(value => new RegExp(`${homeStation}`).test(value)))) {
-        stations.push(homeStation);
-    }
-
-    // Ensure that if they own any independent railroads, they're always included.
-    var independentRailroads = getIndependentRailroadsAsTable()
-        .filter(railroad => railroad[1] === railroadRow.attr("data-railroad"))
-        .map(railroad => railroad[2]);
-    stations = [...new Set(stations.concat(independentRailroads))];
+    // Ensure the railroad's fixed stations are always set (e.g. home station)
+    station = [...new Set(stations.concat(getRailroadFixedStations(railroadRow[0])))]
 
     var stationsHtml = stations.map(station => {
         [cell, branch] = station.split(':');
@@ -511,16 +516,7 @@ function populateStationsModal(source) {
                         }
                     });
                 } else {
-                    var independentRailroads = getIndependentRailroadsAsTable()
-                        .filter(company => company[1] === railroad)
-                        .map(railroad => railroad[2]);
-                    var uneditableStations = independentRailroads
-                        .concat([
-                            $(source).parents("tr").attr("data-home"),
-                            $(source).parents("tr").attr("data-big-4"),
-                            $(source).parents("tr").attr("data-michigan-southern")
-                        ])
-                        .filter(value => !isEmpty(value));
+                   var uneditableStations = getRailroadFixedStations(railroad);
 
                     if (!uneditableStations.includes(cell)) {
                         cityItem.click(function() {

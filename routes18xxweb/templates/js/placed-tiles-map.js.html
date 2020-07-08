@@ -242,30 +242,9 @@ function drawTokens() {
 
     getPhase()
         .done(phase => {
-            if (phase < 3) {
-                getPrivateCompaniesAsTable().forEach(company => {
-                    if (indRailroadNames.includes(company[0])) {
-                        if (isEmpty(company[1])) {
-                            var coord = company[2].trim();
-                            if (!(coord in stationCountByCoord)) {
-                                stationCountByCoord[coord] = 0;
-                            }
-
-                            drawStationOnMap(coord, null, stationCountByCoord[coord], company[0]);
-                            stationCountByCoord[coord]++;
-                        }
-                    }
-                });
-            }
-            if (phase < 4) {
-                getPrivateCompaniesAsTable().forEach(company => {
-                    if (["Steamboat Company", "Meat Packing Company"].includes(company[0])) {
-                        if (!isEmpty(company[1]) && !isEmpty(company[2])) {
-                            drawPrivateCompanyOnMap(company[2].trim(), company[0]);
-                        }
-                    }
-                });
-            }
+            getPrivateCompaniesAsTable().forEach(company => {
+                drawPrivateCompanyTokensHook(phase, company, stationCountByCoord);
+            });
         });
 }
 
@@ -467,9 +446,11 @@ function populateTileSelectorPrivateCompanyDropdown(privateCompanyContent, coord
                     .text(railroad[0])
                     .click(function() {
                         var row = getPrivateCompanyRow(privateCompanyContent.attr("data-name"));
-                        setPrivateCompanyOwner(row, $(this).attr("data-owner"));
-                        setPrivateCompanyTokenCoord(row, coord);
-                        drawTokens();
+                        setPrivateCompanyOwner(row, $(this).attr("data-owner"))
+                            .then(() => {
+                                setPrivateCompanyTokenCoord(row, coord);
+                                drawTokens();
+                            });
 
                         tileSelectorPrivateCompaniesDisplayOwner(privateCompanyContent, true);
 
@@ -522,20 +503,11 @@ function populatePrivateCompanies(coord) {
                 return;
             }
 
-            // This slightly awkward construction allows checking if this space
-            // is a legal spot for any private company.
-        
-            var companyNames = ["Steamboat Company", "Meat Packing Company"];
-            var tokenCoordPromises = Promise.all(companyNames.map(companyName => {
-                return $.get("{{ url_for('.legal_token_coords') }}", {companyName: companyName})
-            }));
-        
-            $.when(tokenCoordPromises)
+            $.get("{{ url_for('.legal_token_coords') }}")
                 .then(function(tokenCoordResponses) {
-                    var validCompanyNames = tokenCoordResponses
-                        .map((response, index) => [companyNames[index], response["coords"]])
-                        .filter(nameAndCoords => nameAndCoords[1].includes(coord))
-                        .map(nameAndCoords => nameAndCoords[0]);
+                    var validCompanyNames = Object.entries(tokenCoordResponses["coords"])
+                        .filter(([companyName, companyCoords]) => companyCoords.includes(coord))
+                        .map(([companyName, companyCoords]) => companyName);
         
                     if (validCompanyNames.length === 0) {
                         $("#tile-selector-private-companies").hide();
@@ -603,13 +575,7 @@ function tileModalStationEntry(coord, railroadName) {
         .append($("<span></span>")
             .text(railroadName));
 
-    var railroadRow = getRailroadRow(railroadName);
-    var indRailroadCoords = getIndependentRailroadsAsTable()
-        // If the railroad entry either is an independent railroad, or the owner
-        // of an independent railroad, that station's location should be uneditable.
-        .filter(railroad => [railroad[0], railroad[1]].includes(railroadName))
-        .map(railroad => railroad[2]);
-    var uneditableStations = indRailroadCoords.concat([railroadRow.attr("data-home")]);
+    var uneditableStations = getRailroadFixedStations(railroadName);
     if (!uneditableStations.includes(coord)) {
         stationEntry
             .append($("<button></button>")
@@ -619,7 +585,7 @@ function tileModalStationEntry(coord, railroadName) {
                 .append($("<span></span>")
                     .addClass("oi oi-delete"))
                 .click(function() {
-                    removeRailroadStation(railroadRow, coord);
+                    removeRailroadStation(getRailroadRow(railroadName), coord);
                     populateStations(coord);
                     drawTokens();
                     clearCalculateTab();
@@ -635,17 +601,7 @@ function populateStations(coord) {
     getPhase()
         .done(phase => {
             var cell = coord.split(':')[0];
-            var railroadsAtCoord = getRailroadsAsTable();
-            if (phase < 3) {
-                railroadsAtCoord = railroadsAtCoord
-                    .concat(getIndependentRailroadsAsTable()
-                        .filter(railroad => isEmpty(railroad[1])));
-            }
-            railroadsAtCoord = railroadsAtCoord
-                .filter(railroad => {
-                    return !isEmpty(railroad[2]) &&
-                        railroad[2].split(",").find(stationCoord => cell === stationCoord.trim().split(':')[0]) !== undefined;
-                });
+           var railroadsAtCoord = getRailroadsAtCoord(cell, phase);
 
             $("#tile-stations").empty();
             $("#add-tile-stations").empty();

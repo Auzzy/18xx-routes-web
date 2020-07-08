@@ -348,7 +348,7 @@ def board_private_company_info():
 
     default_offset = {"x": 0, "y": 0}
     private_company_offsets = get_private_offsets(get_game(g.game_name))
-    offset_data = private_company_offsets[company]
+    offset_data = private_company_offsets.get(company, {})
     coord_offset = offset_data.get(coord, {}).get("offset", default_offset)
 
     if set(coord_offset.keys()) == {"x", "y"}:
@@ -498,19 +498,15 @@ def legal_token_coords():
     game = get_game(g.game_name)
     private_companies = game.get_game_submodule("private_companies")
     if not private_companies:
-        return jsonify({"coords": []})
+        return jsonify({"coords": {}})
 
-    company_name = request.args.get("companyName")
-    if company_name not in private_companies.COMPANIES:
-        raise ValueError(f"Received unsupport private company name: {company_name}")
+    LOG.info(f"Legal private company token coordinates request.")
 
-    LOG.info(f"Legal {company_name} token coordinate request.")
+    private_company_coords = private_companies.PRIVATE_COMPANY_COORDS
 
-    coords = private_companies.PRIVATE_COMPANY_COORDS.get(company_name, [])
+    LOG.info(f"Legal private company token coordinates response: {private_company_coords}")
 
-    LOG.info(f"Legal {company_name} token coordinate response: {coords}")
-
-    return jsonify({"coords": coords})
+    return jsonify({"coords": private_company_coords})
 
 
 def _build_general_message():
