@@ -31,6 +31,21 @@ function getPrivateCompanySpaceInfo(coord, privateCompanyName, callback) {
     });
 }
 
+function getOpenPrivateCompanies() {
+    var allTrains = new Array().concat(...getRailroadsAsTable().map(railroad => {
+        return isEmpty(railroad[1]) ? [] : railroad[1].split(",").map(value => value.trim());
+    }));
+    return $.when(
+        $.get("{{ url_for('.private_companies_open') }}", {trains: JSON.stringify(Array.from(new Set(allTrains)))}),
+        $.get("{{ url_for('.legal_token_coords') }}")
+    ).then((privateCompaniesResponse, tokenCoordsResponse) => {
+        return {
+            privateCompanies: privateCompaniesResponse[0]["private-companies"],
+            tokenCoords: tokenCoordsResponse[0]["coords"]
+        };
+    });
+}
+
 function setPrivateCompanyTokenCoord(privateCompanyRow, tokenCoord) {
     var companyName = privateCompanyRow.attr("data-name");
     {%- for name, coord in private_company_default_token_coords.items() %}

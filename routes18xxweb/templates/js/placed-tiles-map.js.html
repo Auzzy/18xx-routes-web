@@ -494,54 +494,44 @@ function tileSelectorPrivateCompaniesDisplayOwner(privateCompanyContent, isToken
 }
 
 function populatePrivateCompanies(coord) {
-    getPhase()
-        .done(phase => {
+    getOpenPrivateCompanies()
+        .done(result => {
             $("#tile-selector-private-companies-content").empty();
 
-            if (phase >= 4) {
-                $("#tile-selector-private-companies").hide();
-                return;
-            }
-
-            $.get("{{ url_for('.legal_token_coords') }}")
-                .then(function(tokenCoordResponses) {
-                    var validCompanyNames = Object.entries(tokenCoordResponses["coords"])
-                        .filter(([companyName, companyCoords]) => companyCoords.includes(coord))
-                        .map(([companyName, companyCoords]) => companyName);
-        
-                    if (validCompanyNames.length === 0) {
-                        $("#tile-selector-private-companies").hide();
-                        return;
-                    }
-        
-                    $("#tile-selector-private-companies").show();
-        
-                    validCompanyNames.forEach(companyName => {
-                        var companyRow = getPrivateCompaniesAsTable().find(row => row[0] === companyName);
-                        var privateCompanyContent = $("<div></div>")
-                            .attr("data-name", `${companyName}`)
-                            .css("margin-bottom", 10)
+            var tokenCoords = result["tokenCoords"];
+            result["privateCompanies"]
+                .filter(companyName => getOrDefault(tokenCoords, companyName, []).includes(coord))
+                .forEach(companyName => {
+                    var privateCompanyContent = $("<div></div>")
+                        .attr("data-name", `${companyName}`)
+                        .css("margin-bottom", 10)
+                        .append($("<div></div>")
+                            .addClass("dropdown")
+                            .append($("<button></button>")
+                                .addClass("btn btn-sm btn-outline-success dropdown-toggle")
+                                .attr("type", "button")
+                                .attr("data-toggle", "dropdown")
+                                .attr("aria-haspopup", "true")
+                                .attr("aria-expanded", "false")
+                                .text(`Place ${companyName} token`))
                             .append($("<div></div>")
-                                .addClass("dropdown")
-                                .append($("<button></button>")
-                                    .addClass("btn btn-sm btn-outline-success dropdown-toggle")
-                                    .attr("type", "button")
-                                    .attr("data-toggle", "dropdown")
-                                    .attr("aria-haspopup", "true")
-                                    .attr("aria-expanded", "false")
-                                    .text(`Place ${companyName} token`))
-                                .append($("<div></div>")
-                                    .addClass("dropdown-menu"))
-                                .on("show.bs.dropdown", function() {
-                                    populateTileSelectorPrivateCompanyDropdown($(privateCompanyContent), coord);
-                                }));
-        
-                        var isTokenHere = !isEmpty(companyRow[2]) && companyRow[2] === coord;
-                        tileSelectorPrivateCompaniesDisplayOwner($(privateCompanyContent), isTokenHere);
-        
-                        $("#tile-selector-private-companies-content").append(privateCompanyContent);
-                    });
-            });
+                                .addClass("dropdown-menu"))
+                            .on("show.bs.dropdown", function() {
+                                populateTileSelectorPrivateCompanyDropdown($(privateCompanyContent), coord);
+                            }));
+
+                    var companyRow = getPrivateCompaniesAsTable().find(row => row[0] === companyName);
+                    var isTokenHere = !isEmpty(companyRow[2]) && companyRow[2] === coord;
+                    tileSelectorPrivateCompaniesDisplayOwner($(privateCompanyContent), isTokenHere);
+
+                    $("#tile-selector-private-companies-content").append(privateCompanyContent);
+                });
+
+            if ($("#tile-selector-private-companies-content").children().length === 0) {
+                $("#tile-selector-private-companies").hide();
+            } else {
+                $("#tile-selector-private-companies").show();
+            }
         });
 }
 
@@ -956,9 +946,9 @@ function getClickableTerminusCoord(pointOnImage) {
 function openTileSelectionModal(rowAndCol, pointOnImage) {
     var clickableTerminusCoord = getClickableTerminusCoord(pointOnImage);
     if (clickableTerminusCoord !== undefined) {
-        getPhase()
-            .done(phase => {
-                if (phase >= 4) {
+        getOpenPrivateCompanies()
+            .done(result => {
+                if (isEmpty(result["privateCompanies"].find(companyName => getOrDefault(result["tokenCoords"], companyName, []).includes(clickableTerminusCoord)))) {
                     return;
                 }
 

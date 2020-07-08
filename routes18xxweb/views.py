@@ -375,16 +375,19 @@ def board_private_company_info():
 def board_phase():
     LOG.info("Phase request")
 
-    train_strs = json.loads(request.args.get("trains"))
-    if train_strs:
-        train_info = get_train_info(g.game_name)
-        phase = max(train.phase for train in trains_mod.convert(train_info, ",".join(train_strs)))
-    else:
-        phase = get_game(g.game_name).phases[0]
+    phase = _phase_from_trains(request.args.get("trains"))
 
     LOG.info(f"Phase: {phase}")
 
     return jsonify({"phase": phase})
+
+def _phase_from_trains(train_strs_json):
+    train_strs = json.loads(train_strs_json)
+    if train_strs:
+        train_info = get_train_info(g.game_name)
+        return max(train.phase for train in trains_mod.convert(train_info, ",".join(train_strs)))
+    else:
+        return get_game(g.game_name).phases[0]
 
 @game_app.route("/railroads/legal-railroads")
 def legal_railroads():
@@ -505,7 +508,7 @@ def legal_token_coords():
     if not private_companies:
         return jsonify({"coords": {}})
 
-    LOG.info(f"Legal private company token coordinates request.")
+    LOG.info("Legal private company token coordinates request.")
 
     private_company_coords = private_companies.PRIVATE_COMPANY_COORDS
 
@@ -513,6 +516,21 @@ def legal_token_coords():
 
     return jsonify({"coords": private_company_coords})
 
+@game_app.route("/private-comapnies/open")
+def private_companies_open():
+    game = get_game(g.game_name)
+    private_companies = game.get_game_submodule("private_companies")
+    if not private_companies:
+        return jsonify({"private-companies": []})
+
+    LOG.info("Open private companies request.")
+
+    phase = _phase_from_trains(request.args.get("trains"))
+    private_companies = [private_company for private_company in private_companies.COMPANIES if not game.private_is_closed(private_company, phase)]
+
+    LOG.info(f"Open private companies response: {private_companies}")
+
+    return jsonify({"private-companies": private_companies})
 
 def _build_general_message():
     railroad_headers = json.loads(request.form.get("railroadHeaders"))
