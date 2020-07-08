@@ -159,6 +159,13 @@ function isEmpty(value) {
     return value === '' || value === null || value === undefined;
 }
 
+function getOrDefault(obj, key, default_val) {
+    if (obj.hasOwnProperty(key)) {
+        return obj[key];
+    }
+    return default_val;
+}
+
 function getLocalStorage(key) {
     var gameStorage = localStorage.getItem("{{ g.game_name }}");
     if (gameStorage === null) {
