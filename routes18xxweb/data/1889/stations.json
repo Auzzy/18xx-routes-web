@@ -1,0 +1,41 @@
+{
+    "board": {
+        "G10": {
+            "offset": {
+                "rotation": 60
+            }
+        },
+        "H3": {
+            "offset": {
+                "rotation": 30
+            }
+        }
+    },
+    "tile": {
+        "14": {
+            "offset": {
+                "rotation": 30
+            }
+        },
+        "15": {
+            "offset": {
+                "rotation": 30
+            }
+        },
+        "448": {
+            "offset": {
+                "rotation": 30
+            }
+        },
+        "619": {
+            "offset": {
+                "rotation": 90
+            }
+        },
+        "611": {
+            "offset": {
+                "rotation": 150
+            }
+        }
+    }
+}
