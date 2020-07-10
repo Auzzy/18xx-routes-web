@@ -109,6 +109,7 @@ function loadFromLocalStoragePrivateCompanies() {
 }
 
 async function importPrivateCompanies(importText) {
+    importText = importText || "";
     var importTableData = [];
     await Promise.all(importText.trim().split("\n").map(rowStr => {
         var rowData = rowStr.split(";", 3).map(cell => cell.trim());

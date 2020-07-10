@@ -99,7 +99,8 @@ def main():
             placed_tiles_colnames=PLACED_TILES_COLUMN_NAMES,
             tile_coords=get_tile_coords(board),
             city_names=stop_names,
-            termini_boundaries=termini_boundaries)
+            termini_boundaries=termini_boundaries,
+            removable_railroads=_get_removable_railroads())
 
 @game_app.route("/calculate", methods=["POST"])
 def calculate():
@@ -401,6 +402,10 @@ def legal_railroads():
         "home-cities": {railroad: railroads_info[railroad]["home"] for railroad in legal_railroads}
     })
 
+def _get_removable_railroads():
+    railroads_info = get_railroad_info(g.game_name)
+    return {name for name, attribs in railroads_info.items() if attribs.get("is_removable")}
+
 @game_app.route("/railroads/removable-railroads")
 def removable_railroads():
     LOG.info("Removable railroads request.")
@@ -408,7 +413,7 @@ def removable_railroads():
     existing_railroads = {railroad for railroad in json.loads(request.args.get("railroads", "{}")) if railroad}
 
     railroads_info = get_railroad_info(g.game_name)
-    all_removable_railroads = {name for name, attribs in railroads_info.items() if attribs.get("is_removable")}
+    all_removable_railroads = _get_removable_railroads()
     removable_railroads = all_removable_railroads - existing_railroads
 
     LOG.info(f"Removable railroads response: {removable_railroads}")
