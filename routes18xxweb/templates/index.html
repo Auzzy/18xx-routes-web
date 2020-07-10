@@ -25,9 +25,11 @@
             <li class="nav-item">
                 <a class="nav-link active" id="railroad-table-tab" data-toggle="tab" href="#railroad-table-tab-content" role="tab" aria-controls="railroad-table-tab" aria-selected="true">Railroads</a>
             </li>
+            {%- if private_company_rownames %}
             <li class="nav-item">
                 <a class="nav-link" id="private-companies-table-tab" data-toggle="tab" href="#private-companies-table-tab-content" role="tab" aria-controls="private-companies-table-tab" aria-selected="false">Private Companies</a>
             </li>
+            {% endif %}
             <div id="calculate-dropdown" class="dropdown">
                 <button type="button" class="btn btn-success dropdown-toggle" id="calculate-dropdown-button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                     Calculate
@@ -40,6 +42,7 @@
             <div class="tab-pane fade show active" id="railroad-table-tab-content" role="tabpanel" aria-labelledby="home-tab">
                 <table id="railroads-table"></table>
                 <div style="margin-top: 10px;">
+                    {% if removable_railroads -%}
                     <h4>Removed Railroads</h4>
                     <div id="removed-railroads"></div>
                     <div class="dropdown" id="remove-railroad-dropdown" style="margin-top: 5px;">
@@ -48,11 +51,14 @@
                         </button>
                         <div class="dropdown-menu" id="remove-railroad-dropdown-list"></div>
                     </div>
+                    {% endif %}
                 </div>
             </div>
+            {%- if private_company_rownames %}
             <div class="tab-pane fade" id="private-companies-table-tab-content" role="tabpanel" aria-labelledby="profile-tab">
                 <table id="private-companies-table"></table>
             </div>
+            {% endif %}
             <div class="tab-pane fade" id="calculate-tab-content" role="tabpanel" aria-labelledby="profile-tab">
                 <h3><span id="best-routes-name"></span><span id="best-routes-total"></span></h3>
                 <div id="calculate-result"></div>
@@ -99,9 +105,11 @@
                     <li class="nav-item">
                         <a class="nav-link" id="railroads-import-export-tab" data-toggle="tab" href="#railroads-import-export-tab-content" role="tab" aria-controls="railroads-import-export-tab" aria-selected="true">Railroads</a>
                     </li>
+                    {%- if private_company_rownames %}
                     <li class="nav-item">
                         <a class="nav-link" id="private-companies-import-export-tab" data-toggle="tab" href="#private-companies-import-export-tab-content" role="tab" aria-controls="private-companies-import-export-tab" aria-selected="true">Private Companies</a>
                     </li>
+                    {% endif %}
                 </ul>
                 <div class="tab-content" id="import-export-tab-content" style="margin-left: 50px; margin-top: 30px;">
                     <div class="tab-pane fade show active" id="tiles-import-export-tab-content" role="tabpanel" aria-labelledby="tiles-import-export-tab">
@@ -119,6 +127,7 @@
                         </p>
                         <textarea id="railroads-import-export-textarea" style="width: 100%;" rows="7"></textarea>
                     </div>
+                    {%- if private_company_rownames %}
                     <div class="tab-pane fade" id="private-companies-import-export-tab-content" role="tabpanel" aria-labelledby="private-companies-import-export-tab">
                         <p>
                             Fields: company name; owner; token coordinate<br />
@@ -126,6 +135,7 @@
                         </p>
                         <textarea id="private-companies-import-export-textarea" style="width: 100%;" rows="7"></textarea>
                     </div>
+                    {% endif %}
                 </div>
             </div>
             <div class="modal-footer">
@@ -212,7 +222,9 @@ function toggleEnableInput(enable) {
     toggleEnableMap(enable);
     toggleEnableRailroads(enable);
     toggleEnableRemovedRailroads(enable);
+    {%- if private_company_rownames %}
     toggleEnablePrivateCompanies(enable);
+    {% endif %}
 
     $("#controls button").prop("disabled", !enable);
     $("#calculate-dropdown button").prop("disabled", !enable);
@@ -227,7 +239,9 @@ function loadGameState() {
             loadFromLocalStoragePlacedTiles(),
             loadFromLocalStorageRailroads(),
             loadFromLocalStorageRemovedRailroads(),
-            loadFromLocalStoragePrivateCompanies()
+            {%- if private_company_rownames %}
+            loadFromLocalStoragePrivateCompanies(),
+            {% endif %}
         ).then(() => {
             toggleEnableInput(true);
             appIsDoneLoading();
@@ -243,8 +257,6 @@ function loadGameState() {
         $("#placed-tiles-board").off("load");
         loadState();
     }
-
-    
 }
 
 // Scale the map to fit on the screen
@@ -266,7 +278,9 @@ $("#global-import-save").click(function() {
     $("#global-import-save").attr("disabled", true);
     $("#tile-import-export-textarea").attr("readonly", true);
     $("#railroads-import-export-textarea").attr("readonly", true);
+    {%- if private_company_rownames %}
     $("#private-companies-import-export-textarea").attr("readonly", true);
+    {% endif %}
 
     importTiles($("#tiles-import-export-textarea").val())
         .then(() => {
@@ -308,17 +322,23 @@ $("#global-import-export-modal").on("show.bs.modal", function() {
     $("#global-import-save").attr("disabled", true);
     $("#tiles-import-export-textarea").attr("readonly", true);
     $("#railroads-import-export-textarea").attr("readonly", true);
+    {%- if private_company_rownames %}
     $("#private-companies-import-export-textarea").attr("readonly", true);
+    {% endif %}
 
     $("#tiles-import-export-textarea").val("").val(prepareTilesForExport());
     $("#railroads-import-export-textarea").val(prepareRailroadsForExport()
             + "\n" + prepareRemovedRailroadsForExport());
+    {%- if private_company_rownames %}
     $("#private-companies-import-export-textarea").val(preparePrivateCompaniesForExport());
+    {% endif %}
 
     $("#global-import-save").attr("disabled", false);
     $("#tiles-import-export-textarea").attr("readonly", false);
     $("#railroads-import-export-textarea").attr("readonly", false);
+    {%- if private_company_rownames %}
     $("#private-companies-import-export-textarea").attr("readonly", false);
+    {% endif %}
 
     enableSubmitViaKeyboard($("#global-import-export-modal"), $("#global-import-save"));
 });
@@ -333,11 +353,11 @@ $("#global-import-export-modal").on("show.bs.modal", function() {
 
 {% include "js/private-companies-table.js.html" %}
 
+{% include ["js/hooks/" ~ g.game_name ~ "/private-companies-hooks.js.html", "js/hooks/default-private-companies-hooks.js.html"] %}
+
 {% include "js/calculate.js.html" %}
 
 {% include "js/report-issue.js.html" %}
-
-{% include ["js/hooks/" ~ g.game_name ~ "/private-companies-hooks.js.html", "js/hooks/default-private-companies-hooks.js.html"] %}
 
 loadGameState();
 
