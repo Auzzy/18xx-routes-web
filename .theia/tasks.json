@@ -1,0 +1,35 @@
+{
+	// See https://go.microsoft.com/fwlink/?LinkId=733558
+	// for the documentation about the tasks.json format
+	"version": "2.0.0",
+	"tasks": [
+      {
+         "label": "start-worker",
+         "type": "shell",
+         "command": "python3",
+         "args": [
+            "start-worker.py"
+         ],
+         "problemMatcher": []
+      },
+      {
+         "label": "start-app",
+         "type": "shell",
+         "command": "python3",
+         "args": [
+            "runner.py"
+         ],
+         "problemMatcher": []
+      },
+      {
+         "label": "prod-app",
+         "type": "shell",
+         "command": "gunicorn",
+         "args": [
+            "routes18xxweb.routes18xxweb:app",
+            "-b", "127.0.0.1:8080"
+         ],
+         "problemMatcher": []
+      }
+   ]
+} 

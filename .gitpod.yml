@@ -1,0 +1,11 @@
+image:
+  file: .gitpod.dockerfile
+
+ports:
+- port: 8080
+- port: 6379
+
+tasks:
+  - init: pip3 install -r ./requirements.txt
+  - command: redis-server
+    name: start-redis 
