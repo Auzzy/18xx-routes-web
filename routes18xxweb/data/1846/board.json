@@ -1,0 +1,12 @@
+{
+    "corner": {
+        "x": 0.027,
+        "y": 0.023
+    },
+    "tile-size": {
+        "width": 0.0442,
+        "height": 0.091
+    },
+    "max-row": "K",
+    "max-col": 23
+}

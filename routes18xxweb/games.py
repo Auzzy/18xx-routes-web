@@ -12,6 +12,7 @@ _BOARDS = {}
 _RAILROAD_INFO = {}
 _TRAIN_INFO = {}
 _PLACEMENT_INFO = collections.defaultdict(dict)
+_BOARD_LAYOUT = {}
 
 def get_game(game_name):
     if game_name not in _GAMES:
@@ -53,3 +54,6 @@ def get_private_offsets(game):
 
 def get_termini_boundaries(game):
     return _get_placement_info(game, "termini.json")
+
+def get_board_layout(game):
+    return _get_placement_info(game, "board.json")
