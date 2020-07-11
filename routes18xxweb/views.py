@@ -12,8 +12,9 @@ from routes18xx import (boardstate, boardtile, find_best_routes, railroads, \
 
 from routes18xxweb.routes18xxweb import app, mail
 from routes18xxweb.calculator import redis_conn
-from routes18xxweb.games import (get_board, get_game, get_private_offsets, get_railroad_info, \
-     get_station_offsets, get_termini_boundaries, get_train_info)
+from routes18xxweb.games import (get_board, get_board_layout, get_game, \
+    get_private_offsets, get_railroad_info, get_station_offsets, \
+    get_termini_boundaries, get_train_info)
 
 from routes18xxweb.logger import get_logger, init_logger, set_log_format
 
@@ -70,6 +71,22 @@ def get_tile_coords(board):
             tile_coords.append(str(cell))
     return tile_coords
 
+def _get_board_layout_info():
+    board = get_board(g.game_name)
+    board_layout = get_board_layout(g.game_name)
+
+    first_coord = str(min(list(board.cells)))
+    row, col = first_coord[0], int(first_coord[1:])
+    board_layout.update({
+        # Determine the parity of the first row's columns. 0 for even, 1 for odd.
+        # If the first cell's row is not A, adjust the parity to what it would be
+        # if it was A.
+        "parity": (col + (0 if ord(row) % 2 == 1 else 1)) % 2,
+        # Convert the max row, expressed as a letter, into an int.
+        "max-row": ord(board_layout["max-row"].lower()) - 97
+    })
+    return board_layout
+
 @app.route("/")
 def game_picker():
     return "placeholder"
@@ -100,7 +117,8 @@ def main():
             tile_coords=get_tile_coords(board),
             city_names=stop_names,
             termini_boundaries=termini_boundaries,
-            removable_railroads=_get_removable_railroads())
+            removable_railroads=_get_removable_railroads(),
+            board_layout=_get_board_layout_info())
 
 @game_app.route("/calculate", methods=["POST"])
 def calculate():
