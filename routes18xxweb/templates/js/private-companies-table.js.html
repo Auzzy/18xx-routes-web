@@ -64,7 +64,7 @@ function setPrivateCompanyTokenCoord(privateCompanyRow, tokenCoord) {
         return;
     }
 
-    var tokenHtml = `${cityNames[tokenCoord]} (${tokenCoord})`;
+    var tokenHtml = `${stopNames[tokenCoord]} (${tokenCoord})`;
 
     tokenDisplay
         .attr("data-coord", tokenCoord)
@@ -280,7 +280,7 @@ function populatePrivateCompanyTokenCoordDropdown(sourceRow) {
     $.get("{{ url_for('.legal_token_coords') }}", {companyName: companyName})
         .done(function(result) {
             result["coords"][companyName].forEach(tokenCoord => {
-                var itemHtml = `${cityNames[tokenCoord]} (${tokenCoord})`;
+                var itemHtml = `${stopNames[tokenCoord]} (${tokenCoord})`;
                 dropdownMenu
                     .append($("<a></a>")
                         .addClass("dropdown-item")
