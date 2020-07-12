@@ -115,7 +115,7 @@ def main():
             private_company_colnames=private_company_column_names,
             placed_tiles_colnames=PLACED_TILES_COLUMN_NAMES,
             tile_coords=get_tile_coords(board),
-            city_names=stop_names,
+            stop_names=stop_names,
             termini_boundaries=termini_boundaries,
             removable_railroads=_get_removable_railroads(),
             board_layout=_get_board_layout_info())

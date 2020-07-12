@@ -5,7 +5,7 @@ var legalCoords = {{ tile_coords | safe }};
 var firstCoord = legalCoords[0];
 var lastCoord = legalCoords[legalCoords.length - 1];
 var currentCoordFocus = undefined;
-var cityNames = {{ city_names | safe }};
+var stopNames = {{ stop_names | safe }};
 var routeColors = [
     "rgba(0, 255, 255, 0.8)",  // cyan
     "rgba(255, 0, 255, 0.8)",  // fuchsia
@@ -37,51 +37,54 @@ function drawRoutesOnMap(routes) {
     var routesCanvas = $("#routes-canvas").get(0);
     var context = routesCanvas.getContext('2d');
 
-    for (var k = 0; k < routes.length; k++) {
-        var coords = routes[k][1];
+    $.get("{{ url_for('.cities') }}")
+        .done(function(result) {
+            for (var k = 0; k < routes.length; k++) {
+                var coords = routes[k][1];
 
-        var routeColor = routeColors[k % routeColors.length];
+                var routeColor = routeColors[k % routeColors.length];
 
-        var routeContext = routesCanvas.getContext("2d");
-        routeContext.strokeStyle = routeColor;
-        routeContext.shadowBlur = 10;
-        routeContext.shadowColor = routeColor;
-        routeContext.lineWidth = routesCanvas.width * 0.0071;
+                var routeContext = routesCanvas.getContext("2d");
+                routeContext.strokeStyle = routeColor;
+                routeContext.shadowBlur = 10;
+                routeContext.shadowColor = routeColor;
+                routeContext.lineWidth = routesCanvas.width * 0.0071;
 
-        routeContext.beginPath();
+                routeContext.beginPath();
 
-        var rowAndCol = coordToRowAndCol(coords[0]);
-        var tileCenter = getTileCenter(routesCanvas, rowAndCol.row, rowAndCol.col);
-        routeContext.moveTo(tileCenter.x, tileCenter.y);
+                var rowAndCol = coordToRowAndCol(coords[0]);
+                var tileCenter = getTileCenter(routesCanvas, rowAndCol.row, rowAndCol.col);
+                routeContext.moveTo(tileCenter.x, tileCenter.y);
 
-        for (var index = 1; index < coords.length - 1; index++) {
-            var coordRowAndCol = coordToRowAndCol(coords[index]);
-            var enterCoordRowAndCol = coordToRowAndCol(coords[index - 1]);
-            var exitCoordRowAndCol = coordToRowAndCol(coords[index + 1]);
+                for (var index = 1; index < coords.length - 1; index++) {
+                    var coordRowAndCol = coordToRowAndCol(coords[index]);
+                    var enterCoordRowAndCol = coordToRowAndCol(coords[index - 1]);
+                    var exitCoordRowAndCol = coordToRowAndCol(coords[index + 1]);
 
-            var coordTileCenter = getTileCenter(routesCanvas, coordRowAndCol.row, coordRowAndCol.col);
-            var exitCoordTileCenter = getTileCenter(routesCanvas, exitCoordRowAndCol.row, exitCoordRowAndCol.col);
+                    var coordTileCenter = getTileCenter(routesCanvas, coordRowAndCol.row, coordRowAndCol.col);
+                    var exitCoordTileCenter = getTileCenter(routesCanvas, exitCoordRowAndCol.row, exitCoordRowAndCol.col);
 
-            var exitPoint = {x: (coordTileCenter.x + exitCoordTileCenter.x) / 2.0, y: (coordTileCenter.y + exitCoordTileCenter.y) / 2.0};
+                    var exitPoint = {x: (coordTileCenter.x + exitCoordTileCenter.x) / 2.0, y: (coordTileCenter.y + exitCoordTileCenter.y) / 2.0};
 
-            if (cityNames.hasOwnProperty(coords[index])) {
-                routeContext.lineTo(coordTileCenter.x, coordTileCenter.y);
-                routeContext.lineTo(exitPoint.x, exitPoint.y);
-            } else if (areNeighbors(enterCoordRowAndCol, exitCoordRowAndCol)) {
-                // Sharp curves
-                routeContext.arcTo(coordTileCenter.x, coordTileCenter.y, exitPoint.x, exitPoint.y, routesCanvas.width * 0.025);
-            } else {
-                // Shallow curves
-                routeContext.arcTo(coordTileCenter.x, coordTileCenter.y, exitPoint.x, exitPoint.y, routesCanvas.width * 0.077);
+                    if (result["cities"].includes(coords[index]) && !result["split-cities"].includes(coords[index])) {
+                        routeContext.lineTo(coordTileCenter.x, coordTileCenter.y);
+                        routeContext.lineTo(exitPoint.x, exitPoint.y);
+                    } else if (areNeighbors(enterCoordRowAndCol, exitCoordRowAndCol)) {
+                        // Sharp curves
+                        routeContext.arcTo(coordTileCenter.x, coordTileCenter.y, exitPoint.x, exitPoint.y, routesCanvas.width * 0.025);
+                    } else {
+                        // Shallow curves
+                        routeContext.arcTo(coordTileCenter.x, coordTileCenter.y, exitPoint.x, exitPoint.y, routesCanvas.width * 0.077);
+                    }
+                }
+
+                var finalRowAndCol = coordToRowAndCol(coords[coords.length - 1]);
+                var finalTileCenter = getTileCenter(routesCanvas, finalRowAndCol.row, finalRowAndCol.col);
+                routeContext.lineTo(finalTileCenter.x, finalTileCenter.y);
+
+                routeContext.stroke();
             }
-        }
-
-        var finalRowAndCol = coordToRowAndCol(coords[coords.length - 1]);
-        var finalTileCenter = getTileCenter(routesCanvas, finalRowAndCol.row, finalRowAndCol.col);
-        routeContext.lineTo(finalTileCenter.x, finalTileCenter.y);
-
-        routeContext.stroke();
-    }
+        });
 }
 
 function clearAllHighlights() {
@@ -599,16 +602,11 @@ function populateStations(coord) {
             $("#tile-stations").empty();
             $("#add-tile-stations").empty();
 
-            if (cityNames.hasOwnProperty(cell)) {
-                $("#tile-selector-stations").show();
-            } else {
-                $("#tile-selector-stations").hide();
-                return;
-            }
-
             $.get("{{ url_for('.cities') }}")
                 .done(function(result) {
                     if (result["split-cities"].includes(cell)) {
+                        $("#tile-selector-stations").show();
+
                         var tile = getTileAtCoord(cell);
                         var tileId = isEmpty(tile) ? null : tile[1];
                         var orientation = isEmpty(tile) ? null : tile[2];
@@ -636,12 +634,16 @@ function populateStations(coord) {
                                     }
                                 });
                             });
-                    } else if (cityNames.hasOwnProperty(cell)) {
+                    } else if (result["cities"].includes(cell)) {
+                        $("#tile-selector-stations").show();
+
                         Array.from(new Set(railroadsAtCoord)).forEach(railroad => {
                             $("#tile-stations").append(tileModalStationEntry(cell, railroad[0]));
                         });
 
                         placeStationButton($("#add-tile-stations"), cell);
+                    } else {
+                        $("#tile-selector-stations").hide();
                     }
                 });
         });
@@ -899,8 +901,8 @@ function populateTiles(coord) {
 }
 
 function setTileSelectorModalHeader(coord) {
-    if (cityNames.hasOwnProperty(coord)) {
-        $("#tileSelectorLabel").text(cityNames[coord] + " (" + coord + ")");
+    if (stopNames.hasOwnProperty(coord)) {
+        $("#tileSelectorLabel").text(stopNames[coord] + " (" + coord + ")");
     } else {
         $("#tileSelectorLabel").text(coord);
     }
@@ -939,7 +941,7 @@ function getClickableTerminusCoord(pointOnImage) {
         });
 
         if (isPointInPoly(boundaryPoints, pointOnImage)) {
-            return Object.entries(cityNames).find(coordAndName => name === coordAndName[1])[0];
+            return Object.entries(stopNames).find(coordAndName => name === coordAndName[1])[0];
         }
     }
 
