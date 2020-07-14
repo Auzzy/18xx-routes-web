@@ -96,9 +96,9 @@ function setPrivateCompanyOwner(privateCompanyRow, owner) {
         $.get("{{ url_for('.legal_token_coords') }}")
             .done(function(result) {
                 var coords = result["coords"][companyName];
-                if (coords.length > 1 || coords.length === 0) {
+                if (isEmpty(coords) || coords.length > 1 || coords.length === 0) {
                     setPrivateCompanyTokenCoord(privateCompanyRow, null);
-                    if (coords.length > 1) {
+                    if (!isEmpty(coords) && coords.length > 1) {
                         privateCompanyRow.find(".company-token button").show();
                     }
                 } else {
