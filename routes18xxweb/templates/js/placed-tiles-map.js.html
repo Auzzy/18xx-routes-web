@@ -1032,8 +1032,17 @@ async function importTiles(importText) {
         return $.get("{{ url_for('.legal_orientations') }}", {coord: rowData[0], tileId: rowData[1]})
             .done(function(legalOrientationsResponse) {
                 var legalOrientations = legalOrientationsResponse["legal-orientations"];
-                if (isEmpty(legalOrientations) || !legalOrientations.includes(parseInt(rowData[2]))) {
+                var orientationTranslations = legalOrientationsResponse["translations"];
+                var orientation = parseInt(rowData[2]);
+                if (isEmpty(legalOrientations)) {
                     return;
+                } else if (!legalOrientations.includes(orientation)) {
+                    var translatedOrientation = orientationTranslations[orientation];
+                    if (isEmpty(translatedOrientation)) {
+                        return ;
+                    }
+
+                    rowData[2] = translatedOrientation.toString();
                 }
 
                 importTableData.push(rowData);

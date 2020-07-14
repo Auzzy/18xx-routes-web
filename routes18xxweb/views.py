@@ -229,27 +229,30 @@ def _legal_tile_ids_by_coord(game, coord):
         elif space.is_city != tile.is_city or space.is_town != tile.is_town or space.upgrade_attrs != tile.upgrade_attrs:
             continue
 
-        if _get_orientations(game, coord, tile.id):
+        legal_orientations, _ = _get_orientations(game, coord, tile.id)
+        if legal_orientations:
             legal_tile_ids.append(tile.id)
 
     return legal_tile_ids
 
 def _get_orientations(game, coord, tile_id):
     if not coord or not tile_id:
-        return None
+        return None, None
 
     board = get_board(game)
 
     try:
         cell = board.cell(coord)
     except ValueError:
-        return None
+        return None, None
 
     tile = game.tiles.get(tile_id)
     if not tile:
-        return None
+        return None, None
 
+    all_paths = {}
     orientations = []
+    translations = {}
     for orientation in range(0, 6):
         try:
             board._validate_place_tile_neighbors(cell, tile, orientation)
@@ -257,9 +260,15 @@ def _get_orientations(game, coord, tile_id):
         except ValueError:
             continue
 
-        orientations.append(orientation)
+        tile_paths = tuple(sorted((key, tuple(sorted(val))) for key, val in placedtile.PlacedTile.get_paths(cell, tile, orientation).items()))
+        if tile_paths in all_paths:
+            translations[orientation] = all_paths[tile_paths]
+            continue
 
-    return orientations
+        orientations.append(orientation)
+        all_paths[tile_paths] = orientation
+
+    return orientations, translations
 
 @game_app.route("/board/tile-coords")
 def legal_tile_coords():
@@ -303,11 +312,14 @@ def legal_orientations():
 
     LOG.info(f"Legal orientations request for {tile_id} at {coord}.")
 
-    orientations = _get_orientations(get_game(g.game_name), coord, tile_id)
+    orientations, translations = _get_orientations(get_game(g.game_name), coord, tile_id)
 
     LOG.info(f"Legal orientations response for {tile_id} at {coord}: {orientations}")
 
-    return jsonify({"legal-orientations": list(sorted(orientations)) if orientations is not None else orientations})
+    return jsonify({
+        "legal-orientations": list(sorted(orientations)) if orientations is not None else orientations,
+        "translations": translations
+    })
 
 def _get_station_offset(offset_data, key):
     default_offset = {"x": 0, "y": 0, "rotation": 0}
