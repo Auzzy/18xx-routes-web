@@ -279,12 +279,14 @@ def board_tile_image():
 
 @game_app.route("/board/legal-tiles")
 def legal_tiles():
+    game = get_game(g.game_name)
+
     coord = request.args.get("coord")
 
     LOG.info(f"Legal tiles request for {coord}.")
 
     legal_tile_ids = _legal_tile_ids_by_coord(get_game(g.game_name), coord)
-    legal_tile_ids.sort()
+    legal_tile_ids.sort(key=lambda tile_id: f"{game.tiles[tile_id].upgrade_level}-{tile_id:0>3}")
 
     LOG.info(f"Legal tiles response for {coord}: {legal_tile_ids}")
 
