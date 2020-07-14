@@ -1,0 +1,13 @@
+{% extends "layout.html" %}
+
+{% block body %}
+<div style="font-size: 2rem; font-family: inherit; font-weight: 500;">18xx  Route Calculator</div>
+Supported games:
+<ul>
+    {%- for game_key, info in games.items() %}
+    <li>
+        <a href="{{ game_root }}/{{ game_key }}">{{ info['name'] }}{% if 'subtitle' in info %}: {{ info['subtitle'] }}{% endif %}</a>
+    </li>
+    {%- endfor %}
+</ul>
+{% endblock %}

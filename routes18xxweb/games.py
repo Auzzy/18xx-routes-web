@@ -14,6 +14,15 @@ _TRAIN_INFO = {}
 _PLACEMENT_INFO = collections.defaultdict(dict)
 _BOARD_LAYOUT = {}
 
+def _get_data_file(filename):
+    filepath = os.path.join(_DATA_ROOT_DIR, filename)
+    with open(filepath) as data_file:
+        return json.load(data_file)
+
+def get_supported_game_info():
+    return _get_data_file("supported.json")["games"]
+
+
 def get_game(game_name):
     if game_name not in _GAMES:
         _GAMES[game_name] = game.Game.load(game_name)
