@@ -235,7 +235,7 @@ function importRailroads(importText) {
 
 function prepareRailroadsForExport(railroadsTable) {
     railroadsTable = railroadsTable === undefined ? getRailroadsAsTable() : railroadsTable;
-    return railroadsTable.map(row => row.map(cell => isEmpty(cell) ? "" : cell.split(",").join(", ")).join("; ")).join("\n");
+    return railroadsTable.sort((row1, row2) => row1[0].localeCompare(row2[0])).map(row => row.map(cell => isEmpty(cell) ? "" : cell.split(",").join(", ")).join("; ")).join("\n");
 }
 
 function headers() {
