@@ -3,7 +3,7 @@ import math
 import json
 import os
 
-from flask import Blueprint, g, jsonify, render_template, request, url_for
+from flask import abort, Blueprint, g, jsonify, redirect, render_template, request, url_for
 from flask_mail import Message
 from rq import Queue
 
@@ -14,13 +14,14 @@ from routes18xxweb.routes18xxweb import app, mail
 from routes18xxweb.calculator import redis_conn
 from routes18xxweb.games import (get_board, get_board_layout, get_game, \
     get_private_offsets, get_railroad_info, get_station_offsets, \
-    get_termini_boundaries, get_train_info)
+    get_supported_game_info, get_termini_boundaries, get_train_info)
 
 from routes18xxweb.logger import get_logger, init_logger, set_log_format
 
 game_app = Blueprint('game_app', __name__)
 
 GAME_APP_ROOT = "/game"
+UNSUPPORTED_GAME_MESSAGE = "unsupported game"
 
 LOG = get_logger("routes18xxweb")
 init_logger(LOG, "APP_LOG_LEVEL")
@@ -55,6 +56,13 @@ PLACED_TILES_COLUMN_MAP = {
 RAILROADS_COLUMN_NAMES = [RAILROADS_COLUMN_MAP[colname] for colname in railroads.FIELDNAMES]
 PLACED_TILES_COLUMN_NAMES = [PLACED_TILES_COLUMN_MAP[colname] for colname in boardstate.FIELDNAMES]
 
+
+@app.errorhandler(404)
+def page_not_found(exc):
+    if exc.description == UNSUPPORTED_GAME_MESSAGE:
+        return render_template("errors/game-unsupported.html"), 404
+    return render_template("errors/generic-404.html"), 404
+
 @game_app.url_defaults
 def add_game_name(endpoint, values):
     if "game_name" not in values:
@@ -63,7 +71,8 @@ def add_game_name(endpoint, values):
 @game_app.url_value_preprocessor
 def pull_game_name(endpoint, values):
     g.game_name = values.pop('game_name')
-
+    if g.game_name not in get_supported_game_info():
+        abort(404, description=UNSUPPORTED_GAME_MESSAGE)
 
 def get_tile_coords(board):
     tile_coords = []
@@ -91,9 +100,11 @@ def _get_board_layout_info():
 
 @app.route("/")
 def game_picker():
-    from routes18xxweb.games import get_supported_game_info
-
     return render_template("game-selection.html", game_root=GAME_APP_ROOT, games=get_supported_game_info())
+
+@app.route("/game/")
+def incomplete_game_url_handler():
+    return redirect(url_for("game_picker"))
 
 @game_app.route("/")
 def main():
