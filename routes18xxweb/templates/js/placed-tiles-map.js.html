@@ -830,8 +830,10 @@ function populateTiles(coord) {
                 scrollTopHidden($("#tile-selector"), $("#tile-selector-tiles-content"), $(source).index() * 98);
 
                 var orientationTileNum = $("#tile-orientations > .active").index();
-                $("#tile-orientations")
-                    .css("top", ($(source).index() - orientationTileNum) * 98);
+                if (orientationTileNum !== -1) {
+                    $("#tile-orientations")
+                        .css("top", ($(source).index() - orientationTileNum) * 98);
+                }
             });
 
         $("#tile-options > .active").removeClass("active");
