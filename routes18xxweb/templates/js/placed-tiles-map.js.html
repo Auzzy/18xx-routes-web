@@ -1059,7 +1059,7 @@ async function importTiles(importText) {
 
 function prepareTilesForExport(exportTilesTable) {
     exportTilesTable = exportTilesTable === undefined ? getTilesAsTable() : exportTilesTable;
-    return exportTilesTable.map(row => row.join("; ")).join("\n");
+    return exportTilesTable.sort((row1, row2) => row1[0].localeCompare(row2[0])).map(row => row.join("; ")).join("\n");
 }
 
 function toggleEnableMap(enable) {
