@@ -20,6 +20,8 @@ from routes18xxweb.logger import get_logger, init_logger, set_log_format
 
 game_app = Blueprint('game_app', __name__)
 
+GAME_APP_ROOT = "/game"
+
 LOG = get_logger("routes18xxweb")
 init_logger(LOG, "APP_LOG_LEVEL")
 set_log_format(LOG)
@@ -89,7 +91,9 @@ def _get_board_layout_info():
 
 @app.route("/")
 def game_picker():
-    return "placeholder"
+    from routes18xxweb.games import get_supported_game_info
+
+    return render_template("game-selection.html", game_root=GAME_APP_ROOT, games=get_supported_game_info())
 
 @game_app.route("/")
 def main():
@@ -637,4 +641,4 @@ def report_tile_issue():
 
     return ""
 
-app.register_blueprint(game_app, url_prefix='/game/<game_name>')
+app.register_blueprint(game_app, url_prefix=f"{GAME_APP_ROOT}/<game_name>")
