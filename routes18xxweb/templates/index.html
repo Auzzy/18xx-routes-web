@@ -4,7 +4,6 @@
 <div>
     <span style="display: inline-block; font-size: 2rem; font-family: inherit; font-weight: 500;">{{ g.game_name }} Route Calculator</span>
     <span>&nbsp;</span>
-    <button type="button" class="btn btn-sm btn-outline-info align-middle align-text-bottom" data-toggle="modal" data-target="#aboutModal">About</button>
     <button id="general-report-issue-open" class="float-right btn btn-outline-danger" data-toggle="modal" data-target="#general-report-issue-modal" style="margin-right: 25px;">Report Issue</button>
 </div>
 <div id="controls" style="margin-bottom: 10px; width: 100%; text-align: center">
@@ -62,22 +61,6 @@
             <div class="tab-pane fade" id="calculate-tab-content" role="tabpanel" aria-labelledby="profile-tab">
                 <h3><span id="best-routes-name"></span><span id="best-routes-total"></span></h3>
                 <div id="calculate-result"></div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="aboutModal" tabindex="-1" role="dialog" aria-labelledby="aboutModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title">About</h2>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                {% include "about-modal.html" %}
             </div>
         </div>
     </div>
