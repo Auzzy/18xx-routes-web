@@ -1,16 +1,19 @@
+import base64
 import collections
 import math
 import json
 import os
 
+
 from flask import abort, Blueprint, g, jsonify, redirect, render_template, request, url_for
-from flask_mail import Message
 from rq import Queue
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, Attachment
 
 from routes18xx import (boardstate, boardtile, find_best_routes, railroads, \
     placedtile, tiles, trains as trains_mod, LOG as LIB_LOG)
 
-from routes18xxweb.routes18xxweb import app, mail
+from routes18xxweb.routes18xxweb import app
 from routes18xxweb.calculator import redis_conn
 from routes18xxweb.games import (get_board, get_board_layout, get_game, \
     get_private_offsets, get_railroad_info, get_station_offsets, \
@@ -32,7 +35,7 @@ set_log_format(LIB_LOG)
 
 CALCULATOR_QUEUE = Queue(connection=redis_conn)
 
-MESSAGE_BODY_FORMAT = "User: {user}\nComments:\n{comments}"
+MESSAGE_BODY_FORMAT = "User: {user}\nComments:\n{comments}\nPhase: {phase}"
 TILE_MESSAGE_BODY_FORMAT = MESSAGE_BODY_FORMAT + "\nSelected:\n\tcoordinate: {coord}\n\ttile: {tile_id}\n\torientation: {orientation}"
 
 RAILROADS_COLUMN_MAP = {
@@ -579,6 +582,19 @@ def private_companies_open():
 
     return jsonify({"private-companies": private_companies})
 
+def _attach_json(msg, filename, content=None):
+    if content is None:
+        with open(filename) as json_file:
+            content = json_file.read()
+
+    encoded_content = base64.b64encode(json.dumps(content, indent=4, sort_keys=True).encode("utf-8")).decode()
+    msg.add_attachment(
+        Attachment(file_content=encoded_content, file_type="application/json", file_name=os.path.basename(filename))
+    )
+
+def _sendgrid_client():
+    return SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
+
 def _build_general_message():
     railroad_headers = json.loads(request.form.get("railroadHeaders"))
     railroads_data = json.loads(request.form.get("railroadData"))
@@ -589,26 +605,27 @@ def _build_general_message():
     user_email = request.form.get("email")
     user_comments = request.form.get("comments")
     email_subject = request.form.get("subject")
+    phase = request.form.get("phase")
 
     railroads_json = [dict(zip(railroad_headers, row)) for row in railroads_data if any(row)]
     private_companies_json = [dict(zip(private_companies_headers, row)) for row in private_companies_data]
     placed_tiles_json = [dict(zip(placed_tiles_headers, row)) for row in placed_tiles_data if any(row)]
 
-    msg = Message(
-        body=MESSAGE_BODY_FORMAT.format(user=user_email, comments=user_comments),
+    msg = Mail(
+        from_email=app.config.get("MAIL_USERNAME"),
+        to_emails=os.environ["BUG_REPORT_EMAIL"],
         subject=email_subject,
-        sender=app.config.get("MAIL_USERNAME"),
-        recipients=[os.environ["BUG_REPORT_EMAIL"]])
+        plain_text_content=MESSAGE_BODY_FORMAT.format(user=user_email, comments=user_comments, phase=phase))
 
-    msg.attach("railroads.json", "application/json", json.dumps(railroads_json, indent=4, sort_keys=True))
-    msg.attach("private-companies.json", "application/json", json.dumps(private_companies_json, indent=4, sort_keys=True))
-    msg.attach("placed-tiles.json", "application/json", json.dumps(placed_tiles_json, indent=4, sort_keys=True))
+    _attach_json(msg, "railroads.json", railroads_json)
+    _attach_json(msg, "private-companies.json", private_companies_json)
+    _attach_json(msg, "placed-tiles.json", placed_tiles_json)
 
     return msg
 
 @game_app.route("/report/general-issue", methods=["POST"])
 def report_general_issue():
-    mail.send(_build_general_message())
+    response = _sendgrid_client().send(_build_general_message())
     return ""
 
 @game_app.route("/report/calc-issue", methods=["POST"])
@@ -627,9 +644,9 @@ def report_calc_issue():
           "hideStops": hide_stops
     })
 
-    msg.attach("routes.json", "application/json", json.dumps({target_railroad: routes_json}, indent=4, sort_keys=True))
+    _attach_json(msg, "routes.json", {target_railroad: routes_json})
 
-    mail.send(msg)
+    response = _sendgrid_client().send(msg)
 
     return ""
 
@@ -645,22 +662,28 @@ def report_tile_issue():
     user_email = request.form.get("email")
     user_comments = request.form.get("comments")
     email_subject = request.form.get("subject")
+    phase = request.form.get("phase")
+    stations = json.loads(request.form.get("stations"))
+    private_companies = json.loads(request.form.get("privateCompanies"))
 
     message_body = TILE_MESSAGE_BODY_FORMAT.format(
-        user=user_email, comments=user_comments, coord=coord, tile_id=tile_id, orientation=orientation)
+        user=user_email, comments=user_comments, phase=phase, coord=coord, tile_id=tile_id, orientation=orientation)
 
-    msg = Message(
-        body=message_body,
+    msg = Mail(
+        from_email=app.config.get("MAIL_USERNAME"),
+        to_emails=os.environ["BUG_REPORT_EMAIL"],
         subject=email_subject,
-        sender=app.config.get("MAIL_USERNAME"),
-        recipients=[os.environ["BUG_REPORT_EMAIL"]])
+        plain_text_content=message_body)
 
     placed_tiles_json = [dict(zip(placed_tiles_headers, row)) for row in placed_tiles_data if any(row)]
 
-    msg.attach("placed-tiles.json", "application/json", json.dumps(placed_tiles_json, indent=4, sort_keys=True))
-    msg.attach("tiles.json", "application/json", json.dumps(tiles_json, indent=4, sort_keys=True))
-    msg.attach("orientations.json", "application/json", json.dumps(orientations_json, indent=4, sort_keys=True))
-    mail.send(msg)
+    _attach_json(msg, "placed-tiles.json", placed_tiles_json)
+    _attach_json(msg, "tiles.json", tiles_json)
+    _attach_json(msg, "orientations.json", orientations_json)
+    _attach_json(msg, "stations.json", dict(stations))
+    _attach_json(msg, "private-companies.json", dict(private_companies))
+
+    response = _sendgrid_client().send(msg)
 
     return ""
 

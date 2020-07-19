@@ -5,7 +5,8 @@ function gatherGeneralIssueData() {
         privateCompaniesHeaders: JSON.stringify(getPrivateCompaniesHeaders()),
         privateCompaniesData: JSON.stringify(getPrivateCompaniesAsTable()),
         placedTilesHeaders: JSON.stringify(getTilesHeaders()),
-        placedTilesData: JSON.stringify(getTilesAsTable())
+        placedTilesData: JSON.stringify(getTilesAsTable()),
+        phase: $("#board-phase").text()
     };
 }
 
@@ -33,27 +34,43 @@ function gatherTileIssueData() {
     });
 
     var orientations = new Array();
-    $("#tile-orientations > img").each(function(index, orientationImage) {
+    $("#tile-orientations > div").has("img").each(function(index, orientationDiv) {
         orientations.push({
-            orientation: $(orientationImage).attr("data-orientation"),
-            tileId: $(orientationImage).attr("data-tile-id"),
-            coord: $(orientationImage).attr("data-coord"),
-            image: $(orientationImage).attr("src")
+            orientation: $(orientationDiv).attr("data-orientation"),
+            tileId: $(orientationDiv).attr("data-tile-id"),
+            coord: $(orientationDiv).attr("data-coord"),
+            image: $(orientationDiv).children("img").attr("src")
         });
     });
 
     var selectedTileId = $("#tile-options > img.active").attr("data-tile-id");
-    var selectedOrientation = $("#tile-orientations > img.active").attr("data-orientation");
+    var selectedOrientation = $("#tile-orientations > div.active").attr("data-orientation");
+    var phase = $("#board-phase").text();
+    var railroads = getRailroadsAtCoord(coord, phase);
+    var railroadBranches = railroads.map(railroad => {
+        var stationEntry = railroad[2].split(',').find(stationCoord => stationCoord.split(":")[0] === coord);
+        return [railroad[0], stationEntry.split(":")[1]];
+    });
+    var privateCompanies = [];
+    $("#tile-selector-private-companies-content").children("[data-name]").each((index, privateCompanyElement) => {
+        return privateCompanies.push([
+            $(privateCompanyElement).attr("data-name"),
+            $(privateCompanyElement).children("[data-owner]").attr("data-owner")
+        ]);
+    });
 
     return {
-        placedTilesHeaders: JSON.stringify(placedTilesTable.getColHeader()),
-        placedTilesData: JSON.stringify(placedTilesTable.getData()),
+        placedTilesHeaders: JSON.stringify(getTilesHeaders()),
+        placedTilesData: JSON.stringify(getTilesAsTable()),
         coord: coord,
         tileId: selectedTileId,
         orientation: selectedOrientation,
         tiles: JSON.stringify(tiles),
         orientations: JSON.stringify(orientations),
-        subject: "tile issue"
+        subject: "tile issue",
+        phase: phase,
+        stations: JSON.stringify(railroadBranches),
+        privateCompanies: JSON.stringify(privateCompanies)
     };
 }
 
