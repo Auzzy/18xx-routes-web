@@ -128,7 +128,6 @@
     </div>
 </div>
 
-
 {% include "placed-tiles-modals.html" %}
 
 {% include "report-issue-modals.html" %}
@@ -348,6 +347,12 @@ $("#global-import-export-modal").on("show.bs.modal", function() {
 {% include "js/calculate.js.html" %}
 
 {% include "js/report-issue.js.html" %}
+
+{%- for key, value in migration_data.items() %}
+{%- if value %}
+setLocalStorage('{{ key | safe }}', {{ value | safe }});
+{%- endif %}
+{%- endfor %}
 
 loadGameState();
 
