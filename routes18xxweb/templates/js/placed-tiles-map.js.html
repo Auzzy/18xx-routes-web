@@ -71,10 +71,10 @@ function drawRoutesOnMap(routes) {
                         routeContext.lineTo(exitPoint.x, exitPoint.y);
                     } else if (areNeighbors(enterCoordRowAndCol, exitCoordRowAndCol)) {
                         // Sharp curves
-                        routeContext.arcTo(coordTileCenter.x, coordTileCenter.y, exitPoint.x, exitPoint.y, routesCanvas.width * 0.025);
+                        routeContext.arcTo(coordTileCenter.x, coordTileCenter.y, exitPoint.x, exitPoint.y, (routesCanvas.width * {{ col_width + 0.006 }}) / 2);
                     } else {
                         // Shallow curves
-                        routeContext.arcTo(coordTileCenter.x, coordTileCenter.y, exitPoint.x, exitPoint.y, routesCanvas.width * 0.077);
+                        routeContext.arcTo(coordTileCenter.x, coordTileCenter.y, exitPoint.x, exitPoint.y, (3 * routesCanvas.width * {{ col_width + 0.007 }}) / 2);
                     }
                 }
 
