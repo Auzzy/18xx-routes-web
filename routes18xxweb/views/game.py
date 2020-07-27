@@ -88,10 +88,8 @@ def main():
     private_company_column_names = [PRIVATE_COMPANY_COLUMN_MAP[colname] for colname in private_companies.FIELDNAMES] if private_companies else []
 
     return render_template("index.html",
-            railroads_colnames=RAILROADS_COLUMN_NAMES,
             private_company_default_token_coords=private_companies.PRIVATE_COMPANY_DEFAULT_COORDS if private_companies else {},
             private_company_rownames=private_company_names,
-            private_company_colnames=private_company_column_names,
             placed_tiles_colnames=PLACED_TILES_COLUMN_NAMES,
             tile_coords=get_tile_coords(board),
             stop_names=stop_names,
