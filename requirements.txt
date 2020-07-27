@@ -3,6 +3,6 @@ routes-18xx == 0.5.1
 Flask == 1.1.2
 Flask-WTF==0.14.3
 
-redis == 2.10.6
-rq == 0.12
+redis == 3.5.3
+rq == 1.5.0
 sendgrid == 6.4.3
