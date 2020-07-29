@@ -118,6 +118,9 @@ function getPhase() {
     return $.get("{{ url_for('.board_phase') }}", {trains: JSON.stringify(Array.from(new Set(allTrains)))})
         .then(result => {
             return result["phase"];
+        })
+        .fail(function() {
+            console.error("Failed to retrieve game phase.");
         });
 }
 
@@ -125,6 +128,9 @@ function updatePhase() {
     getPhase()
         .done(phase => {
             $("#board-phase").text(phase);
+        })
+        .fail((jqXHR, textStatus, errorThrown) => {
+            $("#board-phase").text("unknown");
         });
 }
 
@@ -230,7 +236,10 @@ function importRailroads(importText) {
         $("#calculate-submit").prop("disabled", !readyToSelectRailroad());
 
         updatePhase();
-    });
+    })
+    .catch(function(jqXHR, textStatus, errorThrown) {
+        console.warn("Failed to import railroads. Continuing...");
+    });;
 }
 
 function prepareRailroadsForExport(railroadsTable) {
@@ -417,6 +426,13 @@ function splitCityPopoverListGroup(railroadName, cityItem) {
                             }
                         }));
             });
+        })
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            console.error("Failed to load the split city branches for tile ${tileId} on ${cityItemCoord}.");
+            popoverListGroup
+                .append($("<div></div>")
+                    .css("color", "red")
+                    .text("Failed to load the branches."));
         });
 
     return popoverListGroup;
@@ -544,6 +560,13 @@ function populateStationsModal(source) {
                     }
                 }
             });
+        })
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            console.error(`Failed to load the list of cities.`);
+            $("#stations-modal-list")
+                .append($("<div></div>")
+                    .css("color", "red")
+                    .text("Failed to load the list of cities."));
         });
 
     enableSubmitViaKeyboard($("#stations-modal"), $("#stations-modal-confirm"));
@@ -609,6 +632,13 @@ function populateTrainsModal(source) {
                 $("#trains-modal-list").append(trainItem);
             });
             limitTrains();
+        })
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            console.error(`Failed to load the list of trains.`);
+            $("#trains-modal-list")
+                .append($("<div></div>")
+                    .css("color", "red")
+                    .text("Failed to load the list of trains."));
         });
     enableSubmitViaKeyboard($("#trains-modal"), $("#trains-modal-confirm"));
 }
@@ -665,6 +695,14 @@ function populateRailroadsDropdown(source) {
                             })
                         );
             });
+        })
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            console.error("Failed to load the list of railroads.");
+            $("#add-railroad-dropdown-list")
+                .append($("<div></div>")
+                    .addClass("dropdown-header")
+                    .css("color", "red")
+                    .text("Failed to load railroads."));
         });
 }
 

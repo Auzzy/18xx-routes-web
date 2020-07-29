@@ -74,7 +74,7 @@ function removeTile(coord) {
     updateLocalStoragePlacedTiles();
 }
 
-function getTileInfo(coord, callback) {
+function getTileInfo(coord, successCallback, failureCallback) {
     var tile = tilesTable.find(row => row[0] === coord);
     var tileId = isEmpty(tile) ? null : tile[1];
     var orientation = isEmpty(tile) ? null : tile[2];
@@ -82,6 +82,14 @@ function getTileInfo(coord, callback) {
         .done(function(response) {
             var info = response["info"];
             info["orientation"] = isEmpty(tile) ? null : tile[2];
-            callback(info);
+            if (!isEmpty(successCallback)) {
+                successCallback(info);
+            }
+        })
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            console.error(`Failed to get tile info for ${coord}.`);
+            if (!isEmpty(failureCallback)) {
+                failureCallback(jqXHR, textStatus, errorThrown);
+            }
         });
 }

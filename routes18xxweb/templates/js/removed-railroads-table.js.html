@@ -90,6 +90,9 @@ function importRemovedRailroads(importText) {
             drawTokens();
 
             updateLocalStorageRemovedRailroads();
+        })
+        .catch(function(jqXHR, textStatus, errorThrown) {
+            console.warn("Failed to import railroads. Continuing...");
         });
 }
 
@@ -125,6 +128,14 @@ function populateRemoveRailroadsDropdown(source) {
                         })
                     );
             });
+        })
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            console.error("Failed to load the list of removable railroads.");
+            $("#remove-railroad-dropdown-list")
+                .append($("<div></div>")
+                    .addClass("dropdown-header")
+                    .css("color", "red")
+                    .text("Failed to load railroads."));
         });
 }
 
