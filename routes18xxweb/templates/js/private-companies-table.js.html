@@ -22,11 +22,19 @@ function getPrivateCompanyRow(companyName) {
     return $(`#private-companies-table tr[data-name='${companyName}']`);
 }
 
-function getPrivateCompanySpaceInfo(coord, privateCompanyName, callback) {
+function getPrivateCompanySpaceInfo(coord, privateCompanyName, successCallback, failureCallback) {
     getTileInfo(coord, (tileInfo) => {
         $.get("{{ url_for('.board_private_company_info') }}", {coord: coord, company: privateCompanyName, phase: tileInfo["phase"]})
             .done(function(response) {
-                callback(response["info"]);
+                if (!isEmpty(successCallback)) {
+                    successCallback(response["info"]);
+                }
+            })
+            .fail(function(jqXHR, textStatus, errorThrown) {
+                console.error(`Failed to determine private company info for ${coord}.`);
+                if (!isEmpty(failureCallback)) {
+                    failureCallback(jqXHR, textStatus, errorThrown);
+                }
             });
     });
 }
@@ -43,6 +51,9 @@ function getOpenPrivateCompanies() {
             privateCompanies: privateCompaniesResponse[0]["private-companies"],
             tokenCoords: tokenCoordsResponse[0]["coords"]
         };
+    })
+    .fail(function(jqXHR, textStatus, errorThrown) {
+        console.error("Failed to retrieve information on the open privates.");
     });
 }
 
@@ -107,6 +118,9 @@ function setPrivateCompanyOwner(privateCompanyRow, owner) {
                 }
 
                 resolve();
+            })
+            .catch(function(jqXHR, textStatus, errorThrown) {
+                console.error("Failed to load the privates' token coordinates.");
             });
     });
 }
@@ -144,6 +158,9 @@ async function importPrivateCompanies(importText) {
                         && (isEmpty(rowData[2]) || legalTokenCoordsResponse[0]["coords"][rowData[0]].includes(rowData[2]))) {
                     importTableData.push(rowData);
                 }
+            })
+            .catch(function(jqXHR, textStatus, errorThrown) {
+                console.warn(`Failed to import private company data: ${rowData}. Continuing...`);
             });
     }));
 
@@ -156,6 +173,9 @@ async function importPrivateCompanies(importText) {
                 if (!isEmpty(rowData[2])) {
                     setPrivateCompanyTokenCoord(tableRow, rowData[2]);
                 }
+            })
+            .catch(function(jqXHR, textStatus, errorThrown) {
+                console.warn(`Failed to import the owner of ${companyName}. Continuing...`);
             });
     });
 
@@ -298,6 +318,14 @@ function populatePrivateCompanyTokenCoordDropdown(sourceRow) {
                         })
                     );
             });
+        })
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            console.error("Failed to load the private companies token coordinates.");
+            dropdownMenu
+                .append($("<div></div>")
+                    .addClass("dropdown-header")
+                    .css("color", "red")
+                    .text("Failed to load token coordinates."));
         });
 }
 

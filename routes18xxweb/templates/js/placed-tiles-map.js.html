@@ -84,6 +84,12 @@ function drawRoutesOnMap(routes) {
 
                 routeContext.stroke();
             }
+        })
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            console.error(`Failed to draw routes on the map. There was an error while requesting the list of cities`);
+            $("#calculate-error")
+                .css("color", "red")
+                .text("Failed to draw the route set on the map.");
         });
 }
 
@@ -500,10 +506,10 @@ function tileSelectorPrivateCompaniesDisplayOwner(privateCompanyContent, isToken
 }
 
 function populatePrivateCompanies(coord) {
+    $("#tile-selector-private-companies-content").empty();
+
     getOpenPrivateCompanies()
         .done(result => {
-            $("#tile-selector-private-companies-content").empty();
-
             var tokenCoords = result["tokenCoords"];
             result["privateCompanies"]
                 .filter(companyName => getOrDefault(tokenCoords, companyName, []).includes(coord))
@@ -538,7 +544,13 @@ function populatePrivateCompanies(coord) {
             } else {
                 $("#tile-selector-private-companies").show();
             }
-        });
+        })
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            $("#tile-selector-private-companies-content")
+                .append($("<div></div>")
+                    .css("color", "red")
+                    .text("Failed to load the privates at this space."));
+        });;
 }
 
 function placeStationButton(parent, coord) {
@@ -594,13 +606,13 @@ function tileModalStationEntry(coord, railroadName) {
 }
 
 function populateStations(coord) {
+    $("#tile-stations").empty();
+    $("#add-tile-stations").empty();
+
     getPhase()
         .done(phase => {
             var cell = coord.split(':')[0];
-           var railroadsAtCoord = getRailroadsAtCoord(cell, phase);
-
-            $("#tile-stations").empty();
-            $("#add-tile-stations").empty();
+            var railroadsAtCoord = getRailroadsAtCoord(cell, phase);
 
             $.get("{{ url_for('.cities') }}")
                 .done(function(result) {
@@ -633,6 +645,12 @@ function populateStations(coord) {
                                         placeStationButton(stationEntry, `${cell}:${neighbor}`);
                                     }
                                 });
+                            })
+                            .fail(function(jqXHR, textStatus, errorThrown) {
+                                console.error(`Failed to load the split city info for ${cell}.`);
+                                $("#tile-stations")
+                                    .css("color", "red")
+                                    .text("Failed to load the city information for this tile.");
                             });
                     } else if (result["cities"].includes(cell)) {
                         $("#tile-selector-stations").show();
@@ -645,7 +663,19 @@ function populateStations(coord) {
                     } else {
                         $("#tile-selector-stations").hide();
                     }
+                })
+                .fail(function(jqXHR, textStatus, errorThrown) {
+                    console.error(`Failed to load the city info for ${cell}.`);
+                    $("#tile-stations")
+                        .css("color", "red")
+                        .text("Failed to load the city information for this tile.");
                 });
+        })
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            $("#tile-stations")
+                .append($("<div></div>")
+                    .css("color", "red")
+                    .text("Failed to load the stations on this space."));
         });
 }
 
@@ -736,10 +766,11 @@ function populateOrientations(sourceTile, coord, tileId) {
     }
 
     var sourceOutline = $(sourceTile).css("outline");
+    $("#tile-orientations").empty();
+    $("#tile-errors").empty();
+
     return $.get("{{ url_for('.legal_orientations') }}", {coord: coord, tileId: tileId})
         .then(function(result) {
-            $("#tile-orientations").empty();
-
             // Reset the tile orientation viewport
             $("#tile-orientations").offset({"top": $("#tile-selector-tiles-content").offset().top});
 
@@ -811,6 +842,12 @@ function populateOrientations(sourceTile, coord, tileId) {
             if (tileInfo !== null && tileInfo[1] === tileId) {
                 highlightOrientation($(`#tile-orientations div[data-orientation='${tileInfo[2]}']`));
             }
+        })
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            console.error(`Failed to load the orientation options for ${coord}.`);
+            scrollTopHidden($("#tile-selector"), $("#tile-selector-tiles-content"), 0);
+            $("#tile-errors")
+                .text("Failed to load the orientation options for this tile.");
         });
 }
 
@@ -841,11 +878,12 @@ function populateTiles(coord) {
     }
 
     $("#delete-tile-button").attr("data-coord", coord);
+    $("#tile-options").empty();
+    $("#tile-orientations").empty();
+    $("#tile-errors").empty();
 
     $.get("{{ url_for('.legal_tiles') }}", {coord: coord})
         .then(function(result) {
-            $("#tile-options").empty();
-            $("#tile-orientations").empty();
 
             for (index in result["legal-tile-ids"]) {
                 var tileId = result["legal-tile-ids"][index];
@@ -899,6 +937,12 @@ function populateTiles(coord) {
             if (tileInfo !== null) {
                 selectTile($(`#tile-options img[data-tile-id='${tileInfo[1]}']`));
             }
+        })
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            scrollTopHidden($("#tile-selector"), $("#tile-selector-tiles-content"), 0);
+            console.error(`Failed to load the tile options for ${coord}.`);
+            $("#tile-errors")
+                .text("Failed to load the tile options for this tile.");
         });
 }
 
@@ -951,6 +995,8 @@ function getClickableTerminusCoord(pointOnImage) {
 }
 
 function openTileSelectionModal(rowAndCol, pointOnImage) {
+    $("#tile-errors").empty();
+
     var clickableTerminusCoord = getClickableTerminusCoord(pointOnImage);
     if (clickableTerminusCoord !== undefined) {
         getOpenPrivateCompanies()
@@ -1048,6 +1094,9 @@ async function importTiles(importText) {
                 }
 
                 importTableData.push(rowData);
+            })
+            .catch(function(jqXHR, textStatus, errorThrown) {
+                console.warn(`While importing tiles, failed to determine the legal tile orientations for ${rowData[0]}, which prevents collapsing duplicate orientations. Continuing...`);
             });
     }));
 

@@ -131,9 +131,15 @@ function requestAndDisplayRoutes(jobId) {
             }
         })
         .fail(function(jqXHR, textStatus, errorThrown) {
-            toggleEnableInput(true);
+            $("#calculate-result").empty();
 
-            alert(errorThrown);
+            console.error(`Failed to check on the status of job ${jobId}`);
+            $("<div />")
+                .css("color", "red")
+                .text("Error checking on the calculation status. Aborting...")
+                .appendTo($("#calculate-result"));
+
+            toggleEnableInput(true);
         });
 }
 
