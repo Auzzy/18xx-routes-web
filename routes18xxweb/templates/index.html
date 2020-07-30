@@ -12,7 +12,7 @@
     <button id="global-import-export-button" type="button" class="btn btn btn-outline-primary" style="margin-left: 20px" data-toggle="modal" data-target="#global-import-export-modal">Global Import/Export</button>
     <button id="controls-clear" type="button" class="btn btn-outline-danger" style="margin-left: 10px;" data-toggle="modal" data-target="#confirm-clear-map-modal">Clear Map</button>
 </div>
-<div id="app-input-area" style="height: 100%;">
+<div id="app-input-area">
     <div id="map-section" style="float: left; max-width: 60%">
         <img tabindex="0" id="placed-tiles-board" src="{{ url_for('static', filename='images/' ~ g.game_name ~ '-Map.png') }}" />
         <canvas id="placed-tiles-board-canvas"></canvas>
@@ -178,22 +178,36 @@ function canDisable(handler) {
 
 function appIsDoneLoading() {
     $("#loading-spinner").remove();
-    $("#loading-canvas").remove();
+    $(".loading-canvas").remove();
 }
 
 function appIsLoading() {
-    $("#app-input-area")
+    var appHeight = Math.max($("#map-section").height(), $("#entry-section").height());
+    $("#map-section")
         // Place canvas over app to created "greyed out" effect.
         .append($("<canvas></canvas>")
-            .attr("id", "loading-canvas")
+            .addClass("loading-canvas")
             .css("z-index", "100")
             .css("position", "absolute")
-            .css("left", $("#placed-tiles-board").position().left)
-            .css("top", $("#placed-tiles-board").position().top)
-            .prop("width", $("#app-input-area").width())
-            .prop("height", $("#app-input-area").height())
-            .css("background-color", "rgba(255, 255, 255, 0.7)"))
+            .css("left", $("#map-section").position().left)
+            .css("top", $("#map-section").position().top)
+            .prop("width", $("#map-section").width())
+            .prop("height", appHeight)
+            .css("background-color", "rgba(255, 255, 255, 0.7)"));
 
+    $("#entry-section")
+        // Place canvas over app to created "greyed out" effect.
+        .append($("<canvas></canvas>")
+            .addClass("loading-canvas")
+            .css("z-index", "100")
+            .css("position", "absolute")
+            .css("left", $("#entry-section").position().left)
+            .css("top", $("#entry-section").position().top)
+            .prop("width", $("#entry-section").width())
+            .prop("height", appHeight)
+            .css("background-color", "rgba(255, 255, 255, 0.7)"));
+
+    $("body")
         // Draw a (large) spinner to show loading.
         .append($("<div></div>")
             .attr("id", "loading-spinner")
@@ -206,8 +220,8 @@ function appIsLoading() {
             .css("height", "100px")
             .css("margin", "auto")
             .css("position", "fixed")
-            .css("top", $("#placed-tiles-board").position().top + $("#app-input-area").height() / 2 - 50)
-            .css("left", $("#placed-tiles-board").position().left + $("#app-input-area").width() / 2 - 50));
+            .css("top", $("body").position().top + $("body").height() / 2 - 50)
+            .css("left", $("body").position().left + $("body").width() / 2 - 50));
 }
 
 function toggleEnableInput(enable) {
