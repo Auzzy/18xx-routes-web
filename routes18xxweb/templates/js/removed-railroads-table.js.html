@@ -87,8 +87,6 @@ function importRemovedRailroads(importText) {
                     $(`#removed-railroads button[data-railroad='${railroad}']`).remove()
                 });
 
-            drawTokens();
-
             updateLocalStorageRemovedRailroads();
         })
         .catch(function(jqXHR, textStatus, errorThrown) {
