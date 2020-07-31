@@ -231,7 +231,6 @@ function importRailroads(importText) {
             });
 
         removeAllPrivateCompanies(company => !getRailroads().includes(company[1]))
-        drawTokens();
 
         $("#calculate-submit").prop("disabled", !readyToSelectRailroad());
 

@@ -114,7 +114,6 @@ function setPrivateCompanyOwner(privateCompanyRow, owner) {
                     }
                 } else {
                     setPrivateCompanyTokenCoord(privateCompanyRow, coords[0]);
-                    drawTokens();
                 }
 
                 resolve();
@@ -178,8 +177,6 @@ async function importPrivateCompanies(importText) {
                 console.warn(`Failed to import the owner of ${companyName}. Continuing...`);
             });
     });
-
-    drawTokens();
 }
 
 function preparePrivateCompaniesForExport(privateCompaniesTable) {
@@ -278,6 +275,7 @@ function removePrivateCompany(companyName) {
     var sourceRow = getPrivateCompanyRow(companyName);
     setPrivateCompanyTokenCoord(sourceRow, null);
     setPrivateCompanyOwner(sourceRow, null);
+    drawTokens();
     updateLocalStoragePrivateCompanies();
     updateLocalStorageRailroads();
 }
@@ -345,6 +343,7 @@ function populatePrivateCompanyOwnerDropdown(sourceRow) {
                         var oldCoord = sourceRow.attr("data-coord");
 
                         setPrivateCompanyOwner(sourceRow, $(this).attr("data-owner"));
+                        drawTokens();
 
                         sourceRow.find(".company-owner button").focus();
 

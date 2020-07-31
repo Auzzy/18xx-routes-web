@@ -249,6 +249,9 @@ function loadGameState() {
             loadFromLocalStoragePrivateCompanies(),
             {% endif %}
         ).then(() => {
+            drawMap();
+            drawTokens();
+        }).then(() => {
             toggleEnableInput(true);
             appIsDoneLoading();
         });
@@ -299,6 +302,8 @@ $("#global-import-save").click(function() {
                             updateLocalStorageRemovedRailroads();
                             importPrivateCompanies($("#private-companies-import-export-textarea").val())
                                 .then(() => {
+                                    drawMap()
+                                    drawTokens();
                                     updateLocalStoragePrivateCompanies();
                                 })
                                 .then(() => {
