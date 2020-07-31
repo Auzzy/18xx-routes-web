@@ -116,7 +116,7 @@ def _validate_migration_data(migration_data):
 
         if key == "placedTilesTable":
             tiles_json = json.loads(value)
-            if not all(len(row) == 3 for row in tiles_json) or not all(col.isalnum() for row in tiles_json for col in row):
+            if not all(len(row) == 3 for row in tiles_json) or not all(str(col).isalnum() for row in tiles_json for col in row):
                 LOG.debug(f"Migration validation failure[{key}]: {value}")
                 return False
         elif key == "railroadsTable":
@@ -172,8 +172,8 @@ def _convert_migration_data(migration_data):
         for tile_row in json.loads(migration_data["placedTilesTable"]):
             converted_data["placedTilesTable"].append([
                 tile_row[0],
-                tile_row[1],
-                str((int(tile_row[2]) - rotation_map[tile_row[1]]) % 6)
+                str(tile_row[1]),
+                str((int(tile_row[2]) - rotation_map[str(tile_row[1])]) % 6)
             ])
         converted_data["placedTilesTable"] = json.dumps(converted_data["placedTilesTable"])
 
