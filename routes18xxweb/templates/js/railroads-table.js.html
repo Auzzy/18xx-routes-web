@@ -341,6 +341,7 @@ function addTrainAndStationButtons(rowElement) {
                     removeAllPrivateCompanies(company => company[1] === $(this).parents("tr").attr("data-railroad"));
                     updateLocalStorageRailroads();
                     updatePhase();
+                    drawTokens();
                 }));
 
     if ($("#railroads-table").attr("data-disabled") === "true") {
@@ -735,6 +736,7 @@ $("#trains-modal-confirm").click(function() {
 
     updateLocalStorageRailroads();
     updatePhase();
+    drawTokens();
 });
 
 $("#stations-modal").on("show.bs.modal", function(event) {
