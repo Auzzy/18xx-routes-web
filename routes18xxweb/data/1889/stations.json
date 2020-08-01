@@ -22,9 +22,24 @@
                 "rotation": 30
             }
         },
+        "439": {
+            "offset": {
+                "rotation": 330
+            }
+        },
+        "440": {
+            "offset": {
+                "rotation": 90
+            }
+        },
         "448": {
             "offset": {
                 "rotation": 30
+            }
+        },
+        "466": {
+            "offset": {
+                "rotation": 90
             }
         },
         "619": {
