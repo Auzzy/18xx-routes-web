@@ -112,7 +112,7 @@ def _legal_tile_ids_by_coord(game, coord):
                 continue
         elif tile.upgrade_level <= space.upgrade_level:
             continue
-        elif space.is_city != tile.is_city or space.is_town != tile.is_town or space.upgrade_attrs != tile.upgrade_attrs:
+        elif space.is_city != tile.is_city or space.is_town != tile.is_town or tile.upgrade_attrs not in space.upgrade_attrs:
             continue
 
         legal_orientations, _ = _get_orientations(game, coord, tile.id)
