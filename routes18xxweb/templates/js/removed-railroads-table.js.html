@@ -28,7 +28,8 @@ function addRemovedRailroad(railroadName, homeCity) {
             .attr("type", "button")
             .attr("data-railroad", railroadName)
             .attr("data-home", homeCity)
-            .css("margin-right", 5)
+            .css("margin-top", 5)
+            .css("display", "block")
             .append($("<span></span>")
                 .addClass("oi oi-circle-x align-text-top")
                 .css("margin-right", 5))
@@ -103,9 +104,9 @@ function prepareRemovedRailroadsForExport(removedRailroadNames) {
 function populateRemoveRailroadsDropdown(source) {
     $("#remove-railroad-dropdown-list").empty();
 
-    $.get("{{ url_for('.removable_railroads') }}", {railroads: JSON.stringify(getRemovedRailroads())})
+    $.get("{{ url_for('.removable_railroads') }}")
         .done(function(result) {
-            var activeRailroads = getRailroads();
+            var activeRailroads = getRailroads().concat(getRemovedRailroads()).concat(getClosedRailroads());
             result["railroads"]
                 .filter(railroad => !activeRailroads.includes(railroad))
                 .forEach(railroad => {

@@ -167,8 +167,8 @@ function importRailroads(importText) {
                     .map(value => value.trim())
                     .filter(value => !isEmpty(value)));
         })
-        // Since the railroads and removed railroads shared a text area, filter out the removed railroads
-        .filter(row => row.length < 2 || isEmpty(row[1][0]) || row[1][0].trim().toLowerCase() !== "removed");
+        // Since the railroads share a text area with the removed and closed railroads, filter out removed and closed
+        .filter(row => row.length < 2 || isEmpty(row[1][0]) || !["removed", "closed"].includes(row[1][0].trim().toLowerCase()));
 
     return $.when(
         $.get("{{ url_for('.legal_railroads') }}"),
@@ -334,19 +334,24 @@ function addTrainAndStationButtons(rowElement) {
             .append($("<span></span>")
                 .addClass("oi oi-delete"))
                 .click(function() {
-                    $(this).parents("tr").remove();
-                    drawTokens();
-
-                    $("#calculate-submit").prop("disabled", !readyToSelectRailroad());
-                    removeAllPrivateCompanies(company => company[1] === $(this).parents("tr").attr("data-railroad"));
-                    updateLocalStorageRailroads();
-                    updatePhase();
-                    drawTokens();
+                    removeRailroad($(this).parents("tr").attr("data-railroad"));
                 }));
 
     if ($("#railroads-table").attr("data-disabled") === "true") {
         $("#railroads-table button").prop("disabled", true);
     }
+}
+
+function removeRailroad(railroad) {
+    var railroadElement = $(`#railroads-table tr[data-railroad='${railroad}']`);
+    railroadElement.remove();
+    drawTokens();
+
+    $("#calculate-submit").prop("disabled", !readyToSelectRailroad());
+    removeAllPrivateCompanies(company => company[1] === railroadElement.attr("data-railroad"));
+    updateLocalStorageRailroads();
+    updatePhase();
+    drawTokens();
 }
 
 function enableSubmitViaKeyboard(modal, submitButton) {
@@ -667,7 +672,7 @@ function populateRailroadsDropdown(source) {
     $.get("{{ url_for('.legal_railroads') }}", {railroads: JSON.stringify(getRailroads())})
         .done(function(result) {
             result["railroads"]
-                .filter(railroad => !getRemovedRailroads().includes(railroad))
+                .filter(railroad => !getRemovedRailroads().includes(railroad) && !getClosedRailroads().includes(railroad))
                 .forEach(railroad => {
                     $("#add-railroad-dropdown-list")
                         .append($("<a></a>")

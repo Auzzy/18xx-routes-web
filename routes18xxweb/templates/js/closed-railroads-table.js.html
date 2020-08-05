@@ -1,0 +1,150 @@
+function getClosedRailroads() {
+    return $("#closed-railroads button[data-railroad]").map((index, element) => $(element).attr("data-railroad")).toArray();
+}
+
+function getClosedRailroadsAsTable() {
+    var closedRailroadsTableData = [];
+    $("#closed-railroads button[data-railroad]").each((index, element) => {
+        return closedRailroadsTableData.push([
+            $(element).attr("data-railroad"),
+            $(element).attr("data-home")
+        ]);
+    });
+    return closedRailroadsTableData;
+}
+
+function deleteClosedRailroad(railroad) {
+    $(`#closed-railroads button[data-railroad='${railroad}']`).remove();
+
+    drawTokens();
+
+    updateLocalStorageClosedRailroads();
+}
+
+function addClosedRailroad(railroadName, homeCity) {
+    $("#closed-railroads")
+        .append($("<button></button>")
+            .addClass("btn btn-sm btn-outline-danger")
+            .attr("type", "button")
+            .attr("data-railroad", railroadName)
+            .attr("data-home", homeCity)
+            .css("margin-top", 5)
+            .css("display", "block")
+            .append($("<span></span>")
+                .addClass("oi oi-circle-x align-text-top")
+                .css("margin-right", 5))
+            .append($("<span></span>").text(railroadName))
+            .click(function() {
+                deleteClosedRailroad($(this).attr("data-railroad"));
+            }));
+
+    if ($("#closed-railroads").attr("data-disabled") === "true") {
+        $("#closed-railroads button").prop("disabled", true);
+    }
+}
+
+function updateLocalStorageClosedRailroads() {
+    setLocalStorage("closedRailroadsTable", getClosedRailroads());
+}
+
+function loadFromLocalStorageClosedRailroads() {
+    var rawClosedRailroadsTable = getLocalStorage("closedRailroadsTable");
+    if (rawClosedRailroadsTable !== undefined) {
+        return importClosedRailroads(prepareClosedRailroadsForExport(rawClosedRailroadsTable));
+    }
+    return Promise.resolve();
+}
+
+function importClosedRailroads(importText) {
+    var importRows = importText.trim().split("\n");
+    var closedRailroadRows = importRows
+        .map(row => row.split(";"))
+        // Since the railroads and closed railroads shared a text area, filter out the railroads
+        .filter(row => row.length >= 2 && !isEmpty(row[1]) && row[1].trim().toLowerCase() === "closed")
+        .map(row => row[0]);
+
+    return $.get("{{ url_for('.closable_railroads') }}")
+        .then(railroadsResponse => {
+            var legalRailroads = railroadsResponse["railroads"];
+            return [
+                closedRailroadRows.filter(railroadName =>
+                        legalRailroads.includes(railroadName) && !getRailroads().includes(railroadName)),
+                railroadsResponse["home-cities"]
+            ];
+        }).then(data => {
+            var railroadNames = data[0];
+            var homeCities = data[1];
+            railroadNames.forEach(railroadName => {
+                var railroadButton = $(`#closed-railroads button[data-railroad='${railroadName}']`);
+                if (railroadButton.length === 0) {
+                    addClosedRailroad(railroadName, homeCities[railroadName]);
+                }
+            });
+
+            // Delete railroads which are in the table but not the import block
+            getClosedRailroads()
+                .filter(railroad => !railroadNames.includes(railroad))
+                .forEach(railroad => {
+                    $(`#closed-railroads button[data-railroad='${railroad}']`).remove()
+                });
+
+            updateLocalStorageClosedRailroads();
+        })
+        .catch(function(jqXHR, textStatus, errorThrown) {
+            console.warn("Failed to import railroads. Continuing...");
+        });
+}
+
+function prepareClosedRailroadsForExport(closedRailroadNames) {
+    return (closedRailroadNames === undefined ? getClosedRailroads() : closedRailroadNames)
+        .map(closedRailroad => `${closedRailroad}; closed`)
+        .join("\n");
+}
+
+function populateCloseRailroadsDropdown(source) {
+    $("#close-railroad-dropdown-list").empty();
+
+    $.get("{{ url_for('.closable_railroads') }}")
+        .done(function(result) {
+            var inactiveRailroads = getRemovedRailroads().concat(getClosedRailroads());
+            result["railroads"]
+                .filter(railroad => !inactiveRailroads.includes(railroad))
+                .forEach(railroad => {
+                $("#close-railroad-dropdown-list")
+                    .append($("<a></a>")
+                        .addClass("dropdown-item")
+                        .attr("data-railroad", railroad)
+                        .attr("href", "#")
+                        .text(railroad)
+                        .click(function() {
+                            var railroad = $(this).attr("data-railroad");
+                            var homeCity = result["home-cities"][railroad];
+                            removeRailroad(railroad);
+                            addClosedRailroad(railroad, homeCity);
+
+                            drawTokens();
+
+                            updateLocalStorageClosedRailroads();
+                        })
+                    );
+            });
+        })
+        .fail(function(jqXHR, textStatus, errorThrown) {
+            console.error("Failed to load the list of closable railroads.");
+            $("#close-railroad-dropdown-list")
+                .append($("<div></div>")
+                    .addClass("dropdown-header")
+                    .css("color", "red")
+                    .text("Failed to load railroads."));
+        });
+}
+
+function toggleEnableClosedRailroads(enable) {
+    $("#closed-railroads").attr("data-disabled", enable ? "false" : "true");
+    $("#closed-railroads button").prop("disabled", !enable);
+    $("#close-railroad-dropdown button").prop("disabled", !enable);
+}
+
+$("#close-railroad-dropdown").on("show.bs.dropdown", function() {
+    populateCloseRailroadsDropdown(this);
+});

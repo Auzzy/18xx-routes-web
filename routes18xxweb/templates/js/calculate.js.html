@@ -178,6 +178,7 @@ function calculate() {
     var postData = {
         "railroads-json": JSON.stringify(railroadsTable),
         "removed-railroads-json": JSON.stringify(getRemovedRailroads()),
+        "closed-railroads-json": JSON.stringify(getClosedRailroads()),
         "private-companies-json": JSON.stringify(getPrivateCompaniesAsTable()),
         "board-state-json": JSON.stringify(getTilesAsTable()),
         "railroad-name": $("#calculate-dropdown").attr("data-selected")

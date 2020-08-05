@@ -16,6 +16,7 @@ CALCULATOR_QUEUE = Queue(connection=redis_conn)
 def calculate():
     railroads_state_rows = json.loads(request.form.get("railroads-json"))
     removed_railroads = json.loads(request.form.get("removed-railroads-json"))
+    closed_railroads = json.loads(request.form.get("closed-railroads-json"))
     private_companies_rows = json.loads(request.form.get("private-companies-json"))
     board_state_rows = json.loads(request.form.get("board-state-json"))
     railroad_name = request.form["railroad-name"]
@@ -25,9 +26,11 @@ def calculate():
     LOG.info(f"Private companies: {private_companies_rows}")
     LOG.info(f"Railroad input: {railroads_state_rows}")
     LOG.info(f"Removed railroads: {removed_railroads}")
+    LOG.info(f"Closed railroads: {closed_railroads}")
     LOG.info(f"Board input: {board_state_rows}")
 
     railroads_state_rows += [[name, "removed"] for name in removed_railroads]
+    railroads_state_rows += [[name, "closed"] for name in closed_railroads]
 
     job = CALCULATOR_QUEUE.enqueue(calculate_worker, g.game_name, railroads_state_rows, private_companies_rows, board_state_rows, railroad_name, job_timeout="5m")
 
