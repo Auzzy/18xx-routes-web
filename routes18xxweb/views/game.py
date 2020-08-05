@@ -95,6 +95,7 @@ def main():
             stop_names=stop_names,
             termini_boundaries=termini_boundaries,
             removable_railroads=_get_removable_railroads(),
+            closable_railroads=_get_closable_railroads(game),
             board_layout=_get_board_layout_info(),
             migration_data=migration_data)
 
@@ -335,17 +336,32 @@ def _get_removable_railroads():
 def removable_railroads():
     LOG.info("Removable railroads request.")
 
-    existing_railroads = {railroad for railroad in json.loads(request.args.get("railroads", "{}")) if railroad}
-
-    railroads_info = get_railroad_info(g.game_name)
-    all_removable_railroads = _get_removable_railroads()
-    removable_railroads = all_removable_railroads - existing_railroads
+    removable_railroads = _get_removable_railroads()
 
     LOG.info(f"Removable railroads response: {removable_railroads}")
 
+    railroads_info = get_railroad_info(g.game_name)
     return jsonify({
         "railroads": list(sorted(removable_railroads)),
         "home-cities": {railroad: railroads_info[railroad]["home"] for railroad in removable_railroads}
+    })
+
+def _get_closable_railroads(game):
+    return set(get_railroad_info(game).keys()) if game.rules.railroads_can_close else set()
+ 
+@game_app.route("/railroads/closable-railroads")
+def closable_railroads():
+    LOG.info("Closable railroads request.")
+
+    game = get_game(g.game_name)
+    closable_railroads = _get_closable_railroads(game)
+
+    LOG.info(f"Closable railroads response: {closable_railroads}")
+
+    railroads_info = get_railroad_info(game)
+    return jsonify({
+        "railroads": list(sorted(closable_railroads)),
+        "home-cities": {railroad: railroads_info[railroad]["home"] for railroad in closable_railroads}
     })
 
 @game_app.route("/railroads/trains")
