@@ -14,16 +14,6 @@ var routeColors = [
 ];
 var terminiBoundaries = {{ termini_boundaries | safe }};
 
-function repositionCanvases() {
-    var mapImage = $("#placed-tiles-board").get(0);
-    $("#placed-tiles-board-canvas, #tile-focus-canvas, #stations-canvas, #routes-canvas")
-        .css("position", "absolute")
-        .css("left", mapImage.offsetLeft)
-        .css("top", mapImage.offsetTop)
-        .prop("width", mapImage.width)
-        .prop("height", mapImage.height);
-}
-
 function areNeighbors(rowAndCol1, rowAndCol2) {
     return (rowAndCol1.row === rowAndCol2.row && rowAndCol1.col + 2 === rowAndCol2.col)
         || (rowAndCol1.row === rowAndCol2.row && rowAndCol1.col - 2 === rowAndCol2.col)
@@ -1196,9 +1186,3 @@ $("#placed-tiles-board").keydown(canDisable(function(event) {
 $("#placed-tiles-board").blur(function() {
     currentCoordFocus = undefined;
 });
-
-$("#game-board-controls")
-    .attr("width", $("#placed-tiles-board").get(0).clientWidth)
-    .css("text-align", "center");
-
-repositionCanvases();

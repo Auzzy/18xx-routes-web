@@ -178,36 +178,21 @@ function canDisable(handler) {
 
 function appIsDoneLoading() {
     $("#loading-spinner").remove();
-    $(".loading-canvas").remove();
+    $("#loading-canvas").remove();
 }
 
 function appIsLoading() {
-    var appHeight = Math.max($("#map-section").height(), $("#entry-section").height());
-    $("#map-section")
-        // Place canvas over app to created "greyed out" effect.
-        .append($("<canvas></canvas>")
-            .addClass("loading-canvas")
-            .css("z-index", "100")
-            .css("position", "absolute")
-            .css("left", $("#map-section").position().left)
-            .css("top", $("#map-section").position().top)
-            .prop("width", $("#map-section").width())
-            .prop("height", appHeight)
-            .css("background-color", "rgba(255, 255, 255, 0.7)"));
-
-    $("#entry-section")
-        // Place canvas over app to created "greyed out" effect.
-        .append($("<canvas></canvas>")
-            .addClass("loading-canvas")
-            .css("z-index", "100")
-            .css("position", "absolute")
-            .css("left", $("#entry-section").position().left)
-            .css("top", $("#entry-section").position().top)
-            .prop("width", $("#entry-section").width())
-            .prop("height", appHeight)
-            .css("background-color", "rgba(255, 255, 255, 0.7)"));
-
     $("body")
+        // Place canvas over app to created "greyed out" effect.
+        .append($("<canvas></canvas>")
+            .attr("id", "loading-canvas")
+            .css("z-index", "100")
+            .css("position", "absolute")
+            .css("left", 0)
+            .css("top", 0)
+            .prop("width", window.innerWidth)
+            .prop("height", window.innerHeight)
+            .css("background-color", "rgba(255, 255, 255, 0.7)"))
         // Draw a (large) spinner to show loading.
         .append($("<div></div>")
             .attr("id", "loading-spinner")
@@ -241,6 +226,28 @@ function loadGameState() {
     appIsLoading();
 
     function loadState() {
+        var mapImage = $("#placed-tiles-board").get(0);
+
+        // Scale the private companies and railroads to fit on the map's right, unless its width is too small.
+        var remainingSpace = window.innerWidth - $("#placed-tiles-board").width();
+        if (remainingSpace < 300) {
+            $("#entry-section").before($("<br />"));
+            $("#entry-section").width(window.innerWidth - 50);
+        } else {
+            $("#entry-section").width(remainingSpace - 50);
+        }
+
+        $("#game-board-controls")
+            .attr("width", mapImage.clientWidth)
+            .css("text-align", "center");
+
+        $("#placed-tiles-board-canvas, #tile-focus-canvas, #stations-canvas, #routes-canvas")
+            .css("position", "absolute")
+            .css("left", mapImage.offsetLeft)
+            .css("top", mapImage.offsetTop)
+            .prop("width", mapImage.width)
+            .prop("height", mapImage.height);
+
         $.when(
             loadFromLocalStoragePlacedTiles(),
             loadFromLocalStorageRailroads(),
@@ -266,18 +273,6 @@ function loadGameState() {
         $("#placed-tiles-board").off("load");
         loadState();
     }
-}
-
-// Scale the map to fit on the screen
-$("#placed-tiles-board").height("100%").css("height", "-=" + $("#placed-tiles-board").offset().top);
-
-// Scale the private companies and railroads to fit on the map's right, unless its width is too small.
-var remainingSpace = window.innerWidth - $("#placed-tiles-board").width();
-if (remainingSpace < 300) {
-    $("#entry-section").before($("<br />"));
-    $("#entry-section").width(window.innerWidth - 50);
-} else {
-    $("#entry-section").width(remainingSpace - 50);
 }
 
 $("#global-import-save").click(function() {
@@ -353,6 +348,21 @@ $("#global-import-export-modal").on("show.bs.modal", function() {
 
     enableSubmitViaKeyboard($("#global-import-export-modal"), $("#global-import-save"));
 });
+
+
+// Scale the map to fit on the screen
+$("#placed-tiles-board").height("100%").css("height", "-=" + $("#placed-tiles-board").offset().top);
+
+// Scale the private companies and railroads to fit on the map's right, unless its width is too small.
+// This isn't necessary, since it is redone once the map finishes loading. But it looks nicer, since
+// this section will spawn docked to the side of the map (on a wide enough screen).
+var remainingSpace = window.innerWidth - $("#placed-tiles-board").width();
+if (remainingSpace < 300) {
+    $("#entry-section").before($("<br />"));
+    $("#entry-section").width(window.innerWidth - 50);
+} else {
+    $("#entry-section").width(remainingSpace - 50);
+}
 
 {% include "js/placed-tiles-map.js.html" %}
 
