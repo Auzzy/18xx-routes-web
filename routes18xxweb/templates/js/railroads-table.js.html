@@ -654,13 +654,13 @@ function limitTrains() {
         .get()
         .reduce((val1, val2) => val1 + val2, 0);
 
-    if (trainCount >= 4) {
+    if (trainCount >= 6) {
         $("#trains-modal-list .list-group-item:not(.active)").addClass("disabled");
     } else {
         $("#trains-modal-list .list-group-item.disabled").removeClass("disabled");
     }
 
-    var newMaxTrains = 4 - trainCount;
+    var newMaxTrains = 6 - trainCount;
     $("#trains-modal-list input[type='number']").each((input, element) => {
         $(element).attr("max", newMaxTrains + parseInt($(element).val()));
     });
