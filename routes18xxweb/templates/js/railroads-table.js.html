@@ -584,12 +584,10 @@ function populateTrainsModal(source) {
         $(element).append($("<input></input>")
             .attr("type", "number")
             .attr("min", 1)
-            .attr("max", 4)
             .attr("value", 1)
             .css("width", "50px")
             .css("height", "1.5em")
-            .addClass("form-control float-right")
-            .on('input', limitTrains));
+            .addClass("form-control float-right"));
     }
 
     $("#trains-modal-list").empty();
@@ -626,7 +624,6 @@ function populateTrainsModal(source) {
                         } else {
                             activateTrainItem(this);
                         }
-                        limitTrains();
                     });
                 
                 if (currentTrains.includes(train)) {
@@ -636,7 +633,6 @@ function populateTrainsModal(source) {
                 
                 $("#trains-modal-list").append(trainItem);
             });
-            limitTrains();
         })
         .fail(function(jqXHR, textStatus, errorThrown) {
             console.error(`Failed to load the list of trains.`);
@@ -646,24 +642,6 @@ function populateTrainsModal(source) {
                     .text("Failed to load the list of trains."));
         });
     enableSubmitViaKeyboard($("#trains-modal"), $("#trains-modal-confirm"));
-}
-
-function limitTrains() {
-    var trainCount = $("#trains-modal-list input[type='number']")
-        .map((index, element) => parseInt($(element).val()))
-        .get()
-        .reduce((val1, val2) => val1 + val2, 0);
-
-    if (trainCount >= 6) {
-        $("#trains-modal-list .list-group-item:not(.active)").addClass("disabled");
-    } else {
-        $("#trains-modal-list .list-group-item.disabled").removeClass("disabled");
-    }
-
-    var newMaxTrains = 6 - trainCount;
-    $("#trains-modal-list input[type='number']").each((input, element) => {
-        $(element).attr("max", newMaxTrains + parseInt($(element).val()));
-    });
 }
 
 function populateRailroadsDropdown(source) {
