@@ -78,7 +78,8 @@ function getTileInfo(coord, successCallback, failureCallback) {
     var tile = tilesTable.find(row => row[0] === coord);
     var tileId = isEmpty(tile) ? null : tile[1];
     var orientation = isEmpty(tile) ? null : tile[2];
-    $.get("{{ url_for('.board_space_info') }}", {coord: coord, orientation: orientation, tileId: tileId})
+    var phase = $("#board-phase").text();
+    $.get("{{ url_for('.board_space_info') }}", {coord: coord, tileId: tileId, orientation: orientation, phase: phase})
         .done(function(response) {
             var info = response["info"];
             info["orientation"] = isEmpty(tile) ? null : tile[2];
@@ -90,6 +91,37 @@ function getTileInfo(coord, successCallback, failureCallback) {
             console.error(`Failed to get tile info for ${coord}.`);
             if (!isEmpty(failureCallback)) {
                 failureCallback(jqXHR, textStatus, errorThrown);
+            }
+        });
+}
+
+function ifSpaceOverloaded(coord, overloadedCallback, notOverloadedCallback) {
+    var phase = $("#board-phase").text();
+    var stations = getRailroadsAtCoord(coord, phase)
+            .concat(getRemovedRailroadsAtCoord(coord, phase))
+            .map(railroadRow => railroadRow[0]);
+    getTileInfo(coord,
+        tileInfo => {
+            var capacity = tileInfo["capacity"];
+            var stationCount = stations.length;
+
+            var unclaimedReservations =
+                tileInfo["home-to"]
+                    .filter(railroad => !stations.includes(railroad))
+                    .concat(tileInfo["reserved-for"]
+                        .filter(railroad => !getRemovedRailroads().includes(railroad)
+                            && !getClosedRailroads().includes(railroad)
+                            && !stations.includes(railroad)));
+
+            var callbackArgs = [capacity, stations, unclaimedReservations, tileInfo["home-to"], tileInfo["reserved-for"]];
+            if (stationCount > capacity - unclaimedReservations.length) {
+                if (!isEmpty(overloadedCallback)) {
+                    overloadedCallback(...callbackArgs);
+                }
+            } else {
+                if (!isEmpty(notOverloadedCallback)) {
+                    notOverloadedCallback(...callbackArgs);
+                }
             }
         });
 }
