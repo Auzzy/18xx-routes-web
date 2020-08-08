@@ -130,25 +130,43 @@ function keepHighlightVisible(tilePoints) {
 
 }
 
-function highlightCoord(coord) {
+function outlineCoord(coord, canvasId, outlineColor) {
     var mapImg = $("#placed-tiles-board").get(0);
-    var focusCanvas = $("#tile-focus-canvas").get(0);
-    var context = focusCanvas.getContext('2d');
+    var outlineCanvas = $(canvasId).get(0);
 
     var rowAndCol = coordToRowAndCol(coord);
-    var tilePoints = getTilePoints(focusCanvas, rowAndCol.row, rowAndCol.col);
+    var tilePoints = getTilePoints(outlineCanvas, rowAndCol.row, rowAndCol.col);
 
-    var focusContext = focusCanvas.getContext("2d");
-    focusContext.strokeStyle = "#00ffff";
-    focusContext.shadowBlur = 20;
-    focusContext.shadowColor = "#00ffff";
-    focusContext.lineWidth = 3;
-    focusContext.beginPath();
-    focusContext.moveTo(tilePoints[0].x, tilePoints[0].y);
-    tilePoints.slice(1).forEach(point => focusContext.lineTo(point.x, point.y));
-    focusContext.closePath();
-    focusContext.stroke();
+    var outlineContext = outlineCanvas.getContext("2d");
 
+    // Store current context settings
+    var strokeStyle = outlineContext.strokeStyle;
+    var shadowBlur = outlineContext.shadowBlur;
+    var shadowColor = outlineContext.shadowColor;
+    var lineWidth = outlineContext.lineWidth;
+
+    // Draw outline
+    outlineContext.strokeStyle = outlineColor;
+    outlineContext.shadowBlur = 20;
+    outlineContext.shadowColor = outlineColor;
+    outlineContext.lineWidth = 3;
+    outlineContext.beginPath();
+    outlineContext.moveTo(tilePoints[0].x, tilePoints[0].y);
+    tilePoints.slice(1).forEach(point => outlineContext.lineTo(point.x, point.y));
+    outlineContext.closePath();
+    outlineContext.stroke();
+
+    // Restore context settings
+    outlineContext.strokeStyle = strokeStyle;
+    outlineContext.shadowBlur = shadowBlur;
+    outlineContext.shadowColor = shadowColor;
+    outlineContext.lineWidth = lineWidth;
+
+    return tilePoints;
+}
+
+function highlightSelectedCoord(coord) {
+    var tilePoints = outlineCoord(coord, "#tile-focus-canvas", "#00ffff");
     keepHighlightVisible(tilePoints);
 }
 
@@ -215,7 +233,7 @@ function removeTileFromMap(coord) {
     mapContext.globalCompositeOperation = 'source-over';
 }
 
-function drawTokens() {
+async function drawTokens() {
     var stationCanvas = $("#stations-canvas").get(0);
     stationCanvas.getContext('2d').clearRect(0, 0, stationCanvas.width, stationCanvas.height);
 
@@ -244,12 +262,22 @@ function drawTokens() {
         stationCountByCoord[coord]++;
     });
 
-    getPhase()
+    await getPhase()
         .done(phase => {
             getPrivateCompaniesAsTable().forEach(company => {
                 drawPrivateCompanyTokensHook(phase, company, stationCountByCoord);
             });
         });
+
+    var canvas =  $("#station-overload-canvas").get(0);
+    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    Object.keys(stationCountByCoord).forEach(coord => {
+        ifSpaceOverloaded(coord,
+            () => {
+                outlineCoord(coord, "#station-overload-canvas", "#ff0000");
+            }
+        );
+    });
 }
 
 function drawPrivateCompanyOnMap(coord, privateCompanyName) {
@@ -588,6 +616,7 @@ function tileModalStationEntry(coord, railroadName) {
                     removeRailroadStation(getRailroadRow(railroadName), coord);
                     populateStations(coord);
                     drawTokens();
+                    setTileSelectorModalMessage(coord);
                     clearCalculateTab();
 
                     updateLocalStorageRailroads();
@@ -692,6 +721,7 @@ function populateTileSelectorStationDropdown(sourceRow, coord) {
                         addRailroadStation(row, coord);
                         populateStations(coord);
                         drawTokens();
+                        setTileSelectorModalMessage(coord);
                         clearCalculateTab();
 
                         updateLocalStorageRailroads();
@@ -876,7 +906,6 @@ function populateTiles(coord) {
 
     $.get("{{ url_for('.legal_tiles') }}", {coord: coord})
         .then(function(result) {
-
             for (index in result["legal-tile-ids"]) {
                 var tileId = result["legal-tile-ids"][index];
                 var tileIdStr = tileId.toString().padStart(3, "0");
@@ -946,6 +975,23 @@ function setTileSelectorModalHeader(coord) {
     }
 }
 
+function setTileSelectorModalMessage(coord) {
+    ifSpaceOverloaded(coord,
+        (capacity, stations, unclaimedReservations) => {
+            if (stations.length > capacity) {
+                var stationWord = stations.length === 1 ? "station" : "stations";
+                $("#tile-selector-modal-message").text(`Contains ${stations.length} ${stationWord}, but capacity is ${capacity}.`);
+            } else {
+                $("#tile-selector-modal-message").text(`Not enough room for some reservations (${unclaimedReservations.join(", ")}).`);
+            }
+            updateTileSelectionViewport();
+        },
+        () => {
+            $("#tile-selector-modal-message").empty();
+            updateTileSelectionViewport();
+        });
+}
+
 function keepOnScreen(viewport, content) {
     // Don't let the bottom of the tile orientation list pass the bottom of the modal viewport
     var viewportBottom = viewport.offset().top + viewport.height();
@@ -999,8 +1045,9 @@ function openTileSelectionModal(rowAndCol, pointOnImage) {
 
                 clearAllHighlights();
                 setTileSelectorModalHeader(clickableTerminusCoord);
+                setTileSelectorModalMessage(clickableTerminusCoord);
                 populatePrivateCompanies(clickableTerminusCoord);
-        
+
                 $("#tile-selector-tiles").hide();
                 $("#tile-selector-stations").hide();
                 $("#tile-selector").modal("show");
@@ -1009,8 +1056,9 @@ function openTileSelectionModal(rowAndCol, pointOnImage) {
         var coord = rowAndColToCoord(rowAndCol);
         if (legalCoords.includes(coord)) {
             clearAllHighlights();
-            highlightCoord(coord);
+            highlightSelectedCoord(coord);
             setTileSelectorModalHeader(coord);
+            setTileSelectorModalMessage(coord);
             populateTiles(coord);
             populateStations(coord);
             populatePrivateCompanies(coord);
@@ -1049,7 +1097,19 @@ $("#tile-selector").on("show.bs.modal", function() {
 $("#tile-selector").on("shown.bs.modal", function() {
     keepOnScreen($("#tile-selector-tiles-content"), $("#tile-orientations"));
     $("#tile-selector-modal-body-tabs .nav-item a:visible").first().click();
+
+    updateTileSelectionViewport();
 });
+
+function updateTileSelectionViewport() {
+    // Resize tile selection window to exactly fix within the modal body viewport.
+    var modalBody = $("#tile-selector-modal-body-tabs-content").parent();
+    $("#tile-selector-tiles-content").height(
+        // The height of the modal body viewport.
+        modalBody.innerHeight()
+        // The offset of the tile selector viewport, which is impacted by both the tab bar and the message section.
+        - ($("#tile-selector-modal-body-tabs-content").offset().top - modalBody.offset().top));
+}
 
 $("#tile-selector").on("hidden.bs.modal", function() {
     currentCoordFocus = $('#tile-selector').attr("data-coord");
@@ -1125,7 +1185,7 @@ $("#placed-tiles-board").focus(canDisable(function(event) {
     }
 
     clearAllHighlights();
-    highlightCoord(currentCoordFocus);
+    highlightSelectedCoord(currentCoordFocus);
 }));
 
 $("#placed-tiles-board").keydown(canDisable(function(event) {
@@ -1154,7 +1214,7 @@ $("#placed-tiles-board").keydown(canDisable(function(event) {
 
         clearAllHighlights();
         if (currentCoordFocus !== undefined) {
-            highlightCoord(currentCoordFocus);
+            highlightSelectedCoord(currentCoordFocus);
         }
     } else if (event.key === "Enter") {
         openTileSelectionModal(coordToRowAndCol(currentCoordFocus));
@@ -1180,7 +1240,7 @@ $("#placed-tiles-board").keydown(canDisable(function(event) {
         if (legalCoords.includes(newCoord)) {
             currentCoordFocus = newCoord;
             clearAllHighlights();
-            highlightCoord(currentCoordFocus);
+            highlightSelectedCoord(currentCoordFocus);
         }
     }
 }));

@@ -13,6 +13,13 @@ function getRemovedRailroadsAsTable() {
     return removedRailroadsTableData;
 }
 
+function getRemovedRailroadsAtCoord(cell, phase) {
+    return getRemovedRailroadsAsTable()
+        .filter(railroad => {
+            return railroad[1].split(",").find(stationCoord => cell === stationCoord.trim().split(':')[0]) !== undefined;
+        });
+}
+
 function deleteRemovedRailroad(railroad) {
     $(`#removed-railroads button[data-railroad='${railroad}']`).remove();
 

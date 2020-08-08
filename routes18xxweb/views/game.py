@@ -222,9 +222,11 @@ def board_space_info():
     coord = request.args["coord"].strip()
     tile_id = request.args.get("tileId", "").strip()
     orientation = request.args.get("orientation", "").strip()
+    phase = request.args.get("phase")
 
     game = get_game(g.game_name)
     board = get_board(game)
+    railroad_info = get_railroad_info(game)
     cell = board.cell(coord)
 
     station_offsets = get_station_offsets(game)
@@ -250,16 +252,24 @@ def board_space_info():
             offset["rotation"] = math.radians(offset["rotation"])
 
     if hasattr(space, "capacity"):
+        # Stop-gap. I need to figure out what to actually do with capacity keys.
         capacity = sum(space.capacity.values()) if isinstance(space.capacity, dict) else space.capacity
     else:
         capacity = 0
 
+    home = [railroad for railroad, info_dict in railroad_info.items() if info_dict.get("home") == coord]
+    if not phase or (game.rules.stations_reserved_until and game.compare_phases(game.rules.stations_reserved_until, phase) < 0):
+        reserved = [railroad for railroad, info_dict in railroad_info.items() if coord in info_dict.get("reserved", [])]
+    else:
+        reserved = []
+
     info = {
-        # Stop-gap. I need to figure out what to actually do with capacity keys.
         "capacity": capacity,
         "offset": offset,
-        "phase": space.upgrade_level,
-        "is-split-city": isinstance(space, (boardtile.SplitCity, placedtile.SplitCity))
+        "phase": getattr(space, "upgrade_level", 0),
+        "is-split-city": isinstance(space, (boardtile.SplitCity, placedtile.SplitCity)),
+        "home-to": home,
+        "reserved-for": reserved
     }
 
     return jsonify({"info": info})

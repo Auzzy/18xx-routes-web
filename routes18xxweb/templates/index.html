@@ -18,6 +18,7 @@
         <canvas id="placed-tiles-board-canvas"></canvas>
         <canvas id="stations-canvas"></canvas>
         <canvas id="routes-canvas"></canvas>
+        <canvas id="station-overload-canvas"></canvas>
         <canvas id="tile-focus-canvas"></canvas>
     </div>
     <div style="float: left; width: 2%;">&nbsp;</div>
@@ -257,7 +258,7 @@ function loadGameState() {
             .attr("width", mapImage.clientWidth)
             .css("text-align", "center");
 
-        $("#placed-tiles-board-canvas, #tile-focus-canvas, #stations-canvas, #routes-canvas")
+        $("#placed-tiles-board-canvas, #station-overload-canvas, #stations-canvas, #routes-canvas, #tile-focus-canvas")
             .css("position", "absolute")
             .css("left", mapImage.offsetLeft)
             .css("top", mapImage.offsetTop)
