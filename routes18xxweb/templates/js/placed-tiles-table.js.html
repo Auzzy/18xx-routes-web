@@ -75,11 +75,12 @@ function removeTile(coord) {
 }
 
 function getTileInfo(coord, successCallback, failureCallback) {
+    [cell, branch] = coord.split(":");
     var tile = tilesTable.find(row => row[0] === coord);
     var tileId = isEmpty(tile) ? null : tile[1];
     var orientation = isEmpty(tile) ? null : tile[2];
     var phase = $("#board-phase").text();
-    $.get("{{ url_for('.board_space_info') }}", {coord: coord, tileId: tileId, orientation: orientation, phase: phase})
+    $.get("{{ url_for('.board_space_info') }}", {coord: cell, tileId: tileId, orientation: orientation, phase: phase})
         .done(function(response) {
             var info = response["info"];
             info["orientation"] = isEmpty(tile) ? null : tile[2];
