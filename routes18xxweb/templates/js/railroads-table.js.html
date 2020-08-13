@@ -454,6 +454,7 @@ function populateStationsModal(source) {
     $.get("{{ url_for('.cities') }}")
         .done(function(result) {
             var splitCities = result["split-cities"];
+            var uneditableStations = getRailroadFixedStations(railroad);
             result["cities"].forEach(cell => {
                 var cityItemText = (stopNames.hasOwnProperty(cell) ? stopNames[cell] : cell) + ` (${cell})`;
                 var cityItem = $("<button></button>")
@@ -537,9 +538,9 @@ function populateStationsModal(source) {
                         }
                     });
                 } else {
-                   var uneditableStations = getRailroadFixedStations(railroad);
-
-                    if (!uneditableStations.includes(cell)) {
+                    if (uneditableStations.includes(cell)) {
+                        cityItem.addClass("bg-secondary");
+                    } else {
                         cityItem.click(function() {
                             if ($(this).hasClass("active")) {
                                 $(this).removeClass("active");
