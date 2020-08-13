@@ -704,9 +704,10 @@ function populateTileSelectorStationDropdown(sourceRow, coord) {
     var dropdownMenu = sourceRow.find(".dropdown-menu");
     dropdownMenu.empty();
 
+    var cell = coord.split(':')[0];
     getRailroadsAsTable()
         .forEach(railroad => {
-            if (railroad[2].split(",").includes(coord)) {
+            if (railroad[2].split(",").map(stationCoord => stationCoord.split(':')[0]).includes(cell)) {
                 return
             }
 
