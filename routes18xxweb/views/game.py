@@ -56,7 +56,9 @@ def _get_board_layout_info():
         # if it was A.
         "parity": (col + (0 if ord(row) % 2 == 1 else 1)) % 2,
         # Convert the max row, expressed as a letter, into an int.
-        "max-row": ord(board_layout["max-row"].lower()) - 97
+        "max-row": ord(board_layout["max-row"].lower()) - 97,
+
+        "space-orientation": board.space_orientation
     })
     return board_layout
 
