@@ -411,6 +411,7 @@ function coordToRowAndCol(coord) {
 }
 
 function getHexPoints(origin, img) {
+    {% if space_orientation == "pointed" %}
     return [
         {x: origin.x, y: origin.y + img.height * {{ 1/3 * row_height}}},
         {x: origin.x + img.width * {{ col_width }}, y: origin.y},
@@ -419,6 +420,18 @@ function getHexPoints(origin, img) {
         {x: origin.x + img.width * {{ col_width }}, y: origin.y + img.height * {{ 4/3 * row_height }}},
         {x: origin.x, y: origin.y + img.height * {{ row_height }}}
     ];
+    {% elif space_orientation == "flat" %}
+    return [
+        {x: origin.x, y: origin.y + img.height * {{ row_height }}},
+        {x: origin.x + img.width * {{ 1/3 * col_width }}, y: origin.y},
+        {x: origin.x + img.width * {{ col_width }}, y: origin.y},
+        {x: origin.x + img.width * {{ 4/3 * col_width }}, y: origin.y + img.height * {{ row_height }}},
+        {x: origin.x + img.width * {{ col_width }}, y: origin.y + img.height * {{ 2 * row_height }}},
+        {x: origin.x + img.width * {{ 1/3 * col_width }}, y: origin.y + img.height * {{ 2 * row_height }}}
+    ];
+    {% else %}
+    console.error("Unable to calculate hex locations.");
+    {% endif %}
 }
 
 function getTileTopLeft(mapImage, row, col) {
@@ -1224,6 +1237,7 @@ $("#placed-tiles-board").keydown(canDisable(function(event) {
         event.stopImmediatePropagation();
 
         var rowAndCol = coordToRowAndCol(currentCoordFocus);
+        {% if space_orientation == "pointed" %}
         if (event.key === "w") {
             rowAndCol.row -= 1;
             rowAndCol.col += 1;
@@ -1235,6 +1249,19 @@ $("#placed-tiles-board").keydown(canDisable(function(event) {
         } else if (event.key === "d") {
             rowAndCol.col += 2;
         }
+        {% elif space_orientation == "flat" %}
+        if (event.key === "w") {
+            rowAndCol.row -= 2;
+        } else if (event.key === "a") {
+            rowAndCol.row += 1;
+            rowAndCol.col -= 1;
+        } else if (event.key === "s") {
+            rowAndCol.row += 2;
+        } else if (event.key === "d") {
+            rowAndCol.row -= 1;
+            rowAndCol.col += 1;
+        }
+        {% endif %}
 
         var newCoord = rowAndColToCoord(rowAndCol);
         if (legalCoords.includes(newCoord)) {
