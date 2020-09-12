@@ -258,7 +258,7 @@ def board_space_info():
         capacity = 0
 
     home = [railroad for railroad, info_dict in railroad_info.items() if info_dict.get("home") == coord]
-    if not phase or (game.rules.stations_reserved_until and game.compare_phases(game.rules.stations_reserved_until, phase) < 0):
+    if not phase or (game.rules.stations.reserved_until and game.compare_phases(game.rules.stations.reserved_until, phase) < 0):
         reserved = [railroad for railroad, info_dict in railroad_info.items() if coord in info_dict.get("reserved", [])]
     else:
         reserved = []
@@ -357,7 +357,7 @@ def removable_railroads():
     })
 
 def _get_closable_railroads(game):
-    return set(get_railroad_info(game).keys()) if game.rules.railroads_can_close else set()
+    return set(get_railroad_info(game).keys()) if game.rules.railroads.can_close else set()
  
 @game_app.route("/railroads/closable-railroads")
 def closable_railroads():
