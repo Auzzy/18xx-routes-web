@@ -703,13 +703,19 @@ function populateStations(coord) {
                                     .text("Failed to load the city information for this tile.");
                             });
                     } else if (result["cities"].includes(cell)) {
-                        $("#tile-selector-stations").show();
+                        getTileInfo(coord, function(tileInfo) {
+                            if (tileInfo["phase"] !== 4 || tileInfo["capacity"] - tileInfo["home-to"].length >= 0) {
+                                $("#tile-selector-stations").show();
 
-                        Array.from(new Set(railroadsAtCoord)).forEach(railroad => {
-                            $("#tile-stations").append(tileModalStationEntry(cell, railroad[0]));
+                                Array.from(new Set(railroadsAtCoord)).forEach(railroad => {
+                                    $("#tile-stations").append(tileModalStationEntry(cell, railroad[0]));
+                                });
+
+                                placeStationButton($("#add-tile-stations"), cell);
+                            } else {
+                                $("#tile-selector-stations").hide();
+                            }
                         });
-
-                        placeStationButton($("#add-tile-stations"), cell);
                     } else {
                         $("#tile-selector-stations").hide();
                     }
