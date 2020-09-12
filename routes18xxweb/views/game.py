@@ -379,7 +379,7 @@ def trains():
     LOG.info("Train request.")
 
     all_trains = get_train_info(g.game_name)
-    train_strs = [str(train) for train in sorted(all_trains, key=lambda train: (train.collect, train.visit))]
+    train_strs = [str(train) for train in sorted(all_trains)]
 
     LOG.info(f"Train response: {all_trains}")
 
