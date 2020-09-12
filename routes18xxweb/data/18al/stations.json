@@ -1,0 +1,65 @@
+{
+    "board": {
+        "G6": {
+            "offset": {
+                "x": -0.05,
+                "y": -0.05
+            }
+        },
+        "H3": {
+            "offset": {
+                "x": -0.15,
+                "y": -0.30
+            }
+        },
+        "J7": {
+            "offset": {
+                "x": 0,
+                "y": -0.35
+            }
+        },
+        "K2": {
+            "offset": {
+                "x": 0,
+                "y": -0.60
+            }
+        },
+        "L1": {
+            "offset": {
+                "rotation": 60
+            }
+        }
+    },
+    "tile": {
+        "14": {
+            "offset": {
+                "rotation": 60
+            }
+        },
+        "15": {
+            "offset": {
+                "rotation": 60
+            }
+        },
+        "63": {
+            "offset": {
+                "rotation": 60
+            }
+        },
+        "443a": {
+            "offset": {
+                "rotation": 120
+            }
+        },
+        "444a": {
+            "offset": {
+                "rotation": 120
+            }
+        },
+        "446": {
+            "offset": {
+                "rotation": 90
+            }
+        }
+    }
+}
