@@ -173,7 +173,7 @@ function importRailroads(importText) {
     return $.when(
         $.get("{{ url_for('.legal_railroads') }}"),
         $.get("{{ url_for('.trains') }}"),
-        $.get("{{ url_for('.cities') }}")
+        $.get("{{ url_for('.cities') }}", {termini: true})
     ).then((railroadsResponse, trainsResponse, citiesResponse) => {
         var homeCities = railroadsResponse[0]["home-cities"];
         var legalRailroads = railroadsResponse[0]["railroads"];
