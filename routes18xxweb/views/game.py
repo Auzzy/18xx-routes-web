@@ -35,12 +35,19 @@ PLACED_TILES_COLUMN_MAP = {
 RAILROADS_COLUMN_NAMES = [RAILROADS_COLUMN_MAP[colname] for colname in railroads.FIELDNAMES]
 PLACED_TILES_COLUMN_NAMES = [PLACED_TILES_COLUMN_MAP[colname] for colname in boardstate.FIELDNAMES]
 
+def _is_clickable_space(space):
+    if not space or space.upgrade_level is not None:
+        return True
+    if space.is_city and (space.capacity > 1 or not space.home):
+        return True
+    return False
 
 def get_tile_coords(board):
     tile_coords = []
     for cell in board.cells:
         space = board.get_space(cell)
-        if not space or space.is_city or space.upgrade_level is not None:
+        # if not space or (space.is_city and not space.is_terminus) or space.upgrade_level is not None:
+        if _is_clickable_space(space):
             tile_coords.append(str(cell))
     return tile_coords
 
@@ -388,6 +395,7 @@ def trains():
 
 @game_app.route("/railroads/cities")
 def cities():
+    include_termini = request.args.get("termini", False)
     LOG.info("Cities request.")
 
     board = get_board(g.game_name)
@@ -396,7 +404,7 @@ def cities():
     split_cities = []
     for cell in sorted(board.cells):
         space = board.get_space(cell)
-        if space and space.is_city:
+        if space and space.is_city and (include_termini or not space.is_terminus):
             coord = str(cell)
             all_cities.append(coord)
             if isinstance(space, (boardtile.SplitCity, placedtile.SplitCity)):
