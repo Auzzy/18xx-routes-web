@@ -97,7 +97,8 @@ def main():
             removable_railroads=_get_removable_railroads(),
             closable_railroads=_get_closable_railroads(game),
             board_layout=_get_board_layout_info(),
-            migration_data=migration_data)
+            migration_data=migration_data,
+            space_orientation=board.space_orientation)
 
 def _legal_tile_ids_by_coord(game, coord):
     board = get_board(game)

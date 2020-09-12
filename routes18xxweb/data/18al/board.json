@@ -1,0 +1,12 @@
+{
+    "corner": {
+        "x": 0.045,
+        "y": 0.033
+    },
+    "grid-size": {
+        "col-width": 0.1097,
+        "row-height": 0.0525
+    },
+    "max-row": "Q",
+    "max-col": 8
+}
