@@ -197,8 +197,18 @@ function drawMap() {
 }
 
 function drawTileOnMap(coord, tileId, orientation) {
-    function drawTile(context, tileImage, tileOrigin, mapImg) {
+    function drawTile(context, tileImage, tileOrigin, tileCenter, mapImg, orientation) {
+        context.save();
+        context.translate(tileCenter.x, tileCenter.y);
+        context.rotate(orientation * Math.PI / 3);
+        context.translate(-tileCenter.x, -tileCenter.y);
+        {% if board_layout["space-orientation"] == "flat" %}
+        context.drawImage(tileImage, tileOrigin.x, tileOrigin.y, mapImg.width * {{ 4/3 * col_width }}, mapImg.height * {{ 2 * row_height }});
+        {% elif board_layout["space-orientation"] == "pointed" %}
         context.drawImage(tileImage, tileOrigin.x, tileOrigin.y, mapImg.width * {{ 2 * col_width }}, mapImg.height * {{ 4/3 * row_height }});
+        {% endif %}
+        context.restore();
+        context.rotate(0);
     }
 
     // Ensure we only draw if all 3 requirements are provided.
@@ -213,20 +223,22 @@ function drawTileOnMap(coord, tileId, orientation) {
     var rowAndCol = coordToRowAndCol(coord);
     var tileOrigin = getTileTopLeft(mapCanvas, rowAndCol.row, rowAndCol.col);
 
-    var orientationStr = orientation.toString();
+    // var orientationStr = orientation.toString();
     var tileIdStr = tileId.toString().padStart(3, "0");
-    var imgSrc = `{{ url_for('static', filename='images/tiles') }}/${tileIdStr}-${orientationStr}.png`;
+    var imgSrc = `{{ url_for('static', filename='images/tiles') }}/${tileIdStr}-{{ board_layout["space-orientation"] }}.png`;
 
     var tileImage = new Image();
     tileImage.src = imgSrc;
 
+    var tileCenter = getTileCenter(mapCanvas, rowAndCol.row, rowAndCol.col);
+
     // Draws the tile after it's loaded...
     $(tileImage).one("load", function() {
-        drawTile(context, tileImage, tileOrigin, mapImg);
+        drawTile(context, tileImage, tileOrigin, tileCenter, mapImg, orientation);
     });
 
     // ...as well as if it was already loaded
-    drawTile(context, tileImage, tileOrigin, mapImg);
+    drawTile(context, tileImage, tileOrigin, tileCenter, mapImg, orientation);
 }
 
 function removeTileFromMap(coord) {
@@ -836,7 +848,8 @@ function populateOrientations(sourceTile, coord, tileId) {
                 var orientation = result["legal-orientations"][index];
                 var orientationStr = orientation.toString();
                 var tileIdStr = tileId.toString().padStart(3, "0");
-                var imgSrc = `{{ url_for('static', filename='images/tiles') }}/${tileIdStr}-${orientationStr}.png`;
+                var imgSrc = `{{ url_for('static', filename='images/tiles') }}/${tileIdStr}-{{ board_layout["space-orientation"] }}.png`;
+                var rotateStr = `rotate(${orientation * 60}deg)`;
 
                 // The img is wrapped in a div because I couldn't draw an outline on the img itself when it received
                 // focus. I am unclear as to why. But I found that letting the div get focus and outlining the img
@@ -844,14 +857,21 @@ function populateOrientations(sourceTile, coord, tileId) {
                 var tileImage = $("<div></div>")
                     .css("margin-bottom", "10px")
                     .css("position", "relative")
+                    .css({
+                        "-webkit-transform": rotateStr,
+                        "-moz-transform": rotateStr,
+                        "-ms-transform": rotateStr,
+                        "-o-transform": rotateStr,
+                        "transform": rotateStr
+                    })
                     .attr("data-coord", coord)
                     .attr("data-tile-id", tileId)
                     .attr("data-orientation", orientation)
                     .attr("tabIndex", "-1")
                     .append($("<img></img>")
                         .attr("src", imgSrc)
-                        .attr("width", "88px")
-                        .attr("height", "100px")
+                        .attr("width", "{% if board_layout['space-orientation'] == 'flat' %}100{% elif board_layout['space-orientation'] == 'pointed' %}88{% endif %}px")
+                        .attr("height", "{% if board_layout['space-orientation'] == 'flat' %}88{% elif board_layout['space-orientation'] == 'pointed' %}100{% endif %}px")
                     )
                     .click(function(event) {
                         selectOrientation(this);
@@ -945,12 +965,12 @@ function populateTiles(coord) {
             for (index in result["legal-tile-ids"]) {
                 var tileId = result["legal-tile-ids"][index];
                 var tileIdStr = tileId.toString().padStart(3, "0");
-                var imgSrc = `{{ url_for('static', filename='images/tiles') }}/${tileIdStr}.png`;
+                var imgSrc = `{{ url_for('static', filename='images/tiles') }}/${tileIdStr}-{{ board_layout["space-orientation"] }}.png`;
             
                 var tileImage = $("<img></img>")
                     .attr("src", imgSrc)
-                    .attr("width", "100px")
-                    .attr("height", "88px")
+                    .attr("width", "{% if board_layout['space-orientation'] == 'flat' %}100{% elif board_layout['space-orientation'] == 'pointed' %}88{% endif %}px")
+                    .attr("height", "{% if board_layout['space-orientation'] == 'flat' %}88{% elif board_layout['space-orientation'] == 'pointed' %}100{% endif %}px")
                     .attr("tabIndex", "0")
                     .css("display", "block")
                     .css("margin-bottom", "10px")
