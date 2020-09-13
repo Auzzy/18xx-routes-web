@@ -180,8 +180,18 @@ function drawMap() {
 }
 
 function drawTileOnMap(coord, tileId, orientation) {
-    function drawTile(context, tileImage, tileOrigin, mapImg) {
+    function drawTile(context, tileImage, tileOrigin, tileCenter, mapImg, orientation) {
+        context.save();
+        context.translate(tileCenter.x, tileCenter.y);
+        context.rotate(orientation * Math.PI / 3);
+        context.translate(-tileCenter.x, -tileCenter.y);
+        {% if space_orientation == "flat" %}
+        context.drawImage(tileImage, tileOrigin.x, tileOrigin.y, mapImg.width * {{ 4/3 * col_width }}, mapImg.height * {{ 2 * row_height }});
+        {% elif space_orientation == "pointed" %}
         context.drawImage(tileImage, tileOrigin.x, tileOrigin.y, mapImg.width * {{ 2 * col_width }}, mapImg.height * {{ 4/3 * row_height }});
+        {% endif %}
+        context.restore();
+        context.rotate(0);
     }
 
     // Ensure we only draw if all 3 requirements are provided.
@@ -196,20 +206,26 @@ function drawTileOnMap(coord, tileId, orientation) {
     var rowAndCol = coordToRowAndCol(coord);
     var tileOrigin = getTileTopLeft(mapCanvas, rowAndCol.row, rowAndCol.col);
 
-    var orientationStr = orientation.toString();
+    // var orientationStr = orientation.toString();
     var tileIdStr = tileId.toString().padStart(3, "0");
-    var imgSrc = `{{ url_for('static', filename='images/tiles') }}/${tileIdStr}-${orientationStr}.png`;
+    {% if space_orientation == "flat" %}
+    var imgSrc = `{{ url_for('static', filename='images/tiles') }}/${tileIdStr}.png`;
+    {% elif space_orientation == "pointed" %}
+    var imgSrc = `{{ url_for('static', filename='images/tiles') }}/${tileIdStr}-0.png`;
+    {% endif %}
 
     var tileImage = new Image();
     tileImage.src = imgSrc;
 
+    var tileCenter = getTileCenter(mapCanvas, rowAndCol.row, rowAndCol.col);
+
     // Draws the tile after it's loaded...
     $(tileImage).one("load", function() {
-        drawTile(context, tileImage, tileOrigin, mapImg);
+        drawTile(context, tileImage, tileOrigin, tileCenter, mapImg, orientation);
     });
 
     // ...as well as if it was already loaded
-    drawTile(context, tileImage, tileOrigin, mapImg);
+    drawTile(context, tileImage, tileOrigin, tileCenter, mapImg, orientation);
 }
 
 function removeTileFromMap(coord) {
