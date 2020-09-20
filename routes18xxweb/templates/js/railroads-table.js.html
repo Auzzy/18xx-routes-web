@@ -79,7 +79,7 @@ function setRailroadStations(railroadRow, stations) {
     }
 
     // Ensure the railroad's fixed stations are always set (e.g. home station)
-    station = [...new Set(stations.concat(getRailroadFixedStations(railroadRow[0])))]
+    stations = [...new Set(stations.concat(getRailroadFixedStations(railroadRow.attr("data-railroad"))))]
 
     var stationsHtml = stations.map(station => {
         [cell, branch] = station.split(':');
@@ -219,8 +219,8 @@ function importRailroads(importText) {
             }
 
             setRailroadTrains(tableRow, rowData[1]);
-            setRailroadStations(tableRow, rowData[2]);
             setRailroadHomeCity(tableRow, rowData[3]);
+            setRailroadStations(tableRow, rowData[2]);
         });
 
         // Delete railroads which are in the table but not the import block
