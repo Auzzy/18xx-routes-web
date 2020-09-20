@@ -1,0 +1,12 @@
+{
+    "corner": {
+        "x": 0.025,
+        "y": -0.018
+    },
+    "grid-size": {
+        "col-width": 0.0785,
+        "row-height": 0.07
+    },
+    "max-row": 14,
+    "max-col": "L"
+}
