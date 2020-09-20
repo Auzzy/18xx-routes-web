@@ -62,9 +62,11 @@ def _get_board_layout_info():
         # if it was A.
         "parity": (col + (0 if ord(row) % 2 == 1 else 1)) % 2,
         # Convert the max row, expressed as a letter, into an int.
-        "max-row": ord(board_layout["max-row"].lower()) - 97,
+        "max-row": board_layout["max-row"] if board.coord_format == "number-letter" else ord(board_layout["max-row"].lower()) - 97,
+        "max-col": (ord(board_layout["max-col"].lower()) - 97) if board.coord_format == "number-letter" else board_layout["max-col"],
 
-        "space-orientation": board.space_orientation
+        "space-orientation": board.space_orientation,
+        "coord-format": board.coord_format
     })
     return board_layout
 
