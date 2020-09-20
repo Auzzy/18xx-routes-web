@@ -312,12 +312,9 @@ def board_phase():
     return jsonify({"phase": phase})
 
 def _phase_from_trains(train_strs_json):
-    train_strs = json.loads(train_strs_json)
-    if train_strs:
-        train_info = get_train_info(g.game_name)
-        return max(train.phase for train in trains_mod.convert(train_info, ",".join(train_strs)))
-    else:
-        return get_game(g.game_name).phases[0]
+    game = get_game(g.game_name)
+    trains = trains_mod.convert(get_train_info(game), ",".join(json.loads(train_strs_json)))
+    return game.detect_phase(trains)
 
 @game_app.route("/railroads/legal-railroads")
 def legal_railroads():
