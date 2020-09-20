@@ -375,8 +375,12 @@ def closable_railroads():
 def trains():
     LOG.info("Train request.")
 
-    all_trains = get_train_info(g.game_name)
-    train_strs = [str(train) for train in sorted(all_trains, key=lambda train: (train.collect, train.visit))]
+    game = get_game(g.game_name)
+    all_trains = get_train_info(game)
+    # We should display trains in the order they arise during the game.
+    # Ideally, this sorting would be done on the client, but we do it here to
+    # avoid passing each train object in full.
+    train_strs = [str(train) for train in sorted(all_trains, key=lambda train: game.phases.index(train.phase))]
 
     LOG.info(f"Train response: {all_trains}")
 
