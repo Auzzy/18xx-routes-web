@@ -30,7 +30,7 @@ def get_game(game_name):
 
 def _get_config(game_obj, config_dict, load_func):
     game_name = game_obj.name if isinstance(game_obj, game.Game) else game_obj
-    if game_name not in config_dict:
+    if os.environ.get("DEBUG", True) or game_name not in config_dict:
         config_dict[game_name] = load_func(get_game(game_name))
     return config_dict[game_name]
 
@@ -46,7 +46,7 @@ def get_train_info(game_obj):
 
 def _get_placement_info(game_obj, filename):
     game_name = game_obj.name if isinstance(game_obj, game.Game) else game_obj
-    if filename not in _PLACEMENT_INFO or game_name not in _PLACEMENT_INFO[filename]:
+    if os.environ.get("DEBUG", True) or filename not in _PLACEMENT_INFO or game_name not in _PLACEMENT_INFO[filename]:
         filepath = os.path.join(_DATA_ROOT_DIR, game_name, filename)
         if os.path.exists(filepath):
             with open(filepath) as placement_file:
