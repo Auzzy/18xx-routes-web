@@ -108,12 +108,9 @@ def _legal_tile_ids_by_coord(game, coord):
 
     legal_tile_ids = []
     for tile in game.tiles.values():
-        if not space:
-            if tile.is_stop:
-                continue
-        elif tile.upgrade_level <= space.upgrade_level:
-            continue
-        elif space.is_city != tile.is_city or space.is_town != tile.is_town or tile.upgrade_attrs not in space.upgrade_attrs:
+        try:
+            board._validate_place_tile_space_type(tile, space)
+        except ValueError:
             continue
 
         legal_orientations, _ = _get_orientations(game, coord, tile.id)
