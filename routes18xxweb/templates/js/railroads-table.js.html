@@ -163,9 +163,9 @@ function importRailroads(importText) {
     var tableData = importRows
         .map(row => {
             return row.split(";", 3)
-                .map(cell => cell.trim().split(",")
-                    .map(value => value.trim())
-                    .filter(value => !isEmpty(value)));
+                .map((cell, index) => {
+                    return index === 0 ? cell.trim() : cell.trim().split(",").map(value => value.trim()).filter(value => !isEmpty(value))
+                });
         })
         // Since the railroads share a text area with the removed and closed railroads, filter out removed and closed
         .filter(row => row.length < 2 || isEmpty(row[1][0]) || !["removed", "closed"].includes(row[1][0].trim().toLowerCase()));
@@ -195,7 +195,7 @@ function importRailroads(importText) {
             // Cannot validate the indicated split city branches. The legal
             // values depends on the tile on the board and its orientation,
             // which is not available at this point.
-            if (legalRailroads.includes(rowData[0][0])
+            if (legalRailroads.includes(rowData[0])
                     && rowData[1].every(train => legalTrains.includes(train))
                     && rowData[2].every(station => legalStations.includes(station.split(':')[0]))
                     && legalStations.includes(rowData[3])) {
@@ -206,7 +206,7 @@ function importRailroads(importText) {
         return importTableData;
     }).then(importTableData => {
         importTableData.forEach(rowData => {
-            var railroadName = rowData[0][0];
+            var railroadName = rowData[0];
             var tableRow = $(`#railroads-table tr[data-railroad='${railroadName}']`);
             if (tableRow.length === 0) {
                 tableRow = $("#railroads-table tr").last();
@@ -225,7 +225,7 @@ function importRailroads(importText) {
 
         // Delete railroads which are in the table but not the import block
         getRailroads()
-            .filter(railroad => !importTableData.map(row => row[0][0]).includes(railroad))
+            .filter(railroad => !importTableData.map(row => row[0]).includes(railroad))
             .forEach(railroad => {
                 $(`#railroads-table tr[data-railroad='${railroad}']`).remove()
             });
@@ -243,7 +243,9 @@ function importRailroads(importText) {
 
 function prepareRailroadsForExport(railroadsTable) {
     railroadsTable = railroadsTable === undefined ? getRailroadsAsTable() : railroadsTable;
-    return railroadsTable.sort((row1, row2) => row1[0].localeCompare(row2[0])).map(row => row.map(cell => isEmpty(cell) ? "" : cell.split(",").join(", ")).join("; ")).join("\n");
+    return railroadsTable.sort((row1, row2) => row1[0].localeCompare(row2[0])).map(row => row.map((cell, index) => {
+        return index === 0 ? cell.trim() : isEmpty(cell) ? "" : cell.split(",").join(", ")
+    }).join("; ")).join("\n");
 }
 
 function headers() {
