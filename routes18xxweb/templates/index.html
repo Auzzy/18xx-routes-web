@@ -13,8 +13,8 @@
     <button id="controls-clear" type="button" class="btn btn-outline-danger" style="margin-left: 10px;" data-toggle="modal" data-target="#confirm-clear-map-modal">Clear Map</button>
 </div>
 <div id="app-input-area">
-    <div id="map-section" style="float: left; max-width: 60%">
-        <img tabindex="0" id="placed-tiles-board" src="{{ url_for('static', filename='images/' ~ g.game_name ~ '-Map.png') }}" />
+    <div id="map-section" style="float: left; max-width: 60%; max-height: 100vh;">
+        <img tabindex="0" id="placed-tiles-board" style="max-width: 100%; max-height: 100%;" src="{{ url_for('static', filename='images/' ~ g.game_name ~ '-Map.png') }}" />
         <canvas id="placed-tiles-board-canvas"></canvas>
         <canvas id="stations-canvas"></canvas>
         <canvas id="routes-canvas"></canvas>
@@ -245,14 +245,7 @@ function loadGameState() {
     function loadState() {
         var mapImage = $("#placed-tiles-board").get(0);
 
-        // Scale the private companies and railroads to fit on the map's right, unless its width is too small.
-        var remainingSpace = window.innerWidth - $("#placed-tiles-board").width();
-        if (remainingSpace < 300) {
-            $("#entry-section").before($("<br />"));
-            $("#entry-section").width(window.innerWidth - 50);
-        } else {
-            $("#entry-section").width(remainingSpace - 50);
-        }
+        scaleInputs();
 
         $("#game-board-controls")
             .attr("width", mapImage.clientWidth)
@@ -377,20 +370,24 @@ $("#global-import-export-modal").on("show.bs.modal", function() {
     enableSubmitViaKeyboard($("#global-import-export-modal"), $("#global-import-save"));
 });
 
+function scaleInputs() {
+    // Scale the map to fit on the screen
+    $("#placed-tiles-board").css("max-height", "100vh").css("max-height", "-=" + $("#placed-tiles-board").offset().top);
 
-// Scale the map to fit on the screen
-$("#placed-tiles-board").height("100%").css("height", "-=" + $("#placed-tiles-board").offset().top);
-
-// Scale the private companies and railroads to fit on the map's right, unless its width is too small.
-// This isn't necessary, since it is redone once the map finishes loading. But it looks nicer, since
-// this section will spawn docked to the side of the map (on a wide enough screen).
-var remainingSpace = window.innerWidth - $("#placed-tiles-board").width();
-if (remainingSpace < 300) {
-    $("#entry-section").before($("<br />"));
-    $("#entry-section").width(window.innerWidth - 50);
-} else {
-    $("#entry-section").width(remainingSpace - 50);
+    // Scale the private companies and railroads to fit on the map's right, unless its width is too small.
+    var remainingSpace = window.innerWidth - $("#placed-tiles-board").width();
+    if (remainingSpace < 300) {
+        $("#entry-section").before($("<br />"));
+        $("#entry-section").width(window.innerWidth - 50);
+    } else {
+        $("#entry-section").width(remainingSpace - 50);
+    }
 }
+
+// This scaling makes the app look better while it loads, since it sets the map
+// size and config tabs to roughly their final values. An update once the map
+// is done loading will set their final values, to avoid race conditions.
+scaleInputs();
 
 {% include "js/placed-tiles-map.js.html" %}
 
